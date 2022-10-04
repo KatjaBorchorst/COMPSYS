@@ -6,7 +6,6 @@
 
 #include "coord_query.h"
 #include "timing.h"
-//Katja
 
 int coord_query_loop(int argc, char** argv, mk_index_fn mk_index, free_index_fn free_index, lookup_fn lookup) {
   if (argc != 2) {

@@ -15,8 +15,7 @@ struct naive_data {
 };
 
 struct naive_data* mk_naive(struct record* rs, int n) {
-  // TODO
-  assert(0);
+  
 }
 
 void free_naive(struct naive_data* data) {
