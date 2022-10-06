@@ -34,7 +34,6 @@ struct indexed_data* mk_indexed(struct record* rs, int n){
 }
 
 void free_indexed(struct indexed_data* data) {
-  //struct index_record *rec = data->irs->record;
   for (int i = 0; i <= data->n; i++){
     free(&data->irs[i]);
   }
@@ -63,12 +62,6 @@ const struct record* lookup_indexed(struct indexed_data *data, int64_t needle) {
       return data->irs[mid].record;
     }
   }
-  // for (int i = 0; i < data->n; ++i) {
-  //   int64_t id = data->irs[i].osm_id;
-  //   if (id == needle) {      
-  //       return data->irs[i].record;
-  //   }
-  // }
   return NULL;
 }
 
