@@ -10,15 +10,52 @@
 #include "coord_query.h"
 
 struct kdtree_data {
-  struct record *rs;
-  struct record *left;
-  struct record *right;
+  struct kd_tree_node *node;
+  int depth;
   
 };
 
+
+struct kd_tree_node {
+  int axis;
+  double point[2];
+  struct record *left;
+  struct record *right;
+};
+ 
+//Comparer functions
+double compareLon (const void * a, const void * b) {
+   const struct record *first = a;
+   const struct record *second = b;
+   return (second->lon < first->lon ) - ( first->lon < second->lon );
+}
+
+double compareLat (const void * a, const void * b) {
+   const struct record *first = a;
+   const struct record *second = b;
+   return (second->lat < first->lat ) - ( first->lat < second->lat );
+}
+
 struct kdtree_data* mk_kdtree(struct record* rs, int n) {
-  assert(0);
-  // TODO
+  int depth = floor(log2(n))+1; //if not 0-indexed depth
+  int axis = depth % 2;
+  struct record median;
+
+  if (!axis) {
+    qsort(rs, n, sizeof(struct record), compareLon); //mutable?
+    median = rs[n/2];
+  } else if (axis) {
+    qsort(rs, n, sizeof(struct record), compareLat);
+    median = rs[n/2];
+  }
+
+  struct kd_tree_node *node = malloc(sizeof(struct kd_tree_node));
+  assert(node != NULL); //check malloc return value
+
+  node->axis = axis;
+  node->point[0] = median.lon;
+  node->point[1] = median.lat;  
+  node->left = mk_kdtree()
 }
 
 void free_kdtree(struct kdtree_data* data) {
