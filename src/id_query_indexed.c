@@ -48,16 +48,13 @@ int compareID (const void * a, const void * b) {
 }
 
 const struct record* lookup_indexed(struct indexed_data *data, int64_t needle) {
-  //struct record *rs = data->irs;
   for (int i = 0; i < data->n; ++i) {
     if (data->irs[i].osm_id == needle) {      
       return (data->irs[i].record);
     }
   }
 	return NULL;
-
 }
-
 
 int main(int argc, char** argv) {
   return id_query_loop(argc, argv,
