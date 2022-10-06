@@ -42,11 +42,10 @@ void free_naive(struct naive_data* data) {
 const struct record* lookup_naive(struct naive_data *data, int64_t needle) {
   struct record *rs = data->rs;
   for (int i = 0; i < data->n; ++i) {
-    //int64_t osm_id = rs[i].osm_id;
      if (rs[i].osm_id == needle) {      
       return &data->rs[i];
      }
-   } printf("Element not found");
+   } //printf("Element not found\n");
 	return NULL;
 
 }
