@@ -9,14 +9,6 @@
 #include "record.h"
 #include "id_query.h"
 
-/*
-DESCRIPTION
-----------------------------------------------
-SHOULD OPERATE BY PERFORMING A LINEAR SEARCH
-THROUGH ALL RECORDS FOR THE DESCIRED ID.
-*/
-
-
 struct naive_data {
   struct record *rs;
   int n;
@@ -47,7 +39,6 @@ const struct record* lookup_naive(struct naive_data *data, int64_t needle) {
     }
   }
 	return NULL;
-
 }
 
 int main(int argc, char** argv) {
