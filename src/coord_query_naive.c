@@ -23,17 +23,12 @@ struct naive_data* mk_naive(struct record* rs, int n) {
 }
 
 void free_naive(struct naive_data* data) {
-  if (data == NULL) {
-    free(data);
-  }
-  if (data->rs != NULL) {
-    free(data->rs);
-  }
+  free(data->rs);
   free(data);
 }
 
 double distance(double lon1, double lat1, double lon2, double lat2) {
-  return sqrt(pow((lon1 - lon2), 2.0) + pow((lat1 - lat2), 2.0));
+  return sqrt((lon1 - lon2)*(lon1 - lon2) + (lat1 - lat2)*(lat1 - lat2));
 }
 
 const struct record* lookup_naive(struct naive_data *data, double lon, double lat) {
