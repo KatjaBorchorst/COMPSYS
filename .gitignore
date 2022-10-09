@@ -12,7 +12,7 @@
 *.map
 *.exp
 
-# Precompiled Headers
+# Precompiled rooters
 *.gch
 *.pch
 
