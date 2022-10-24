@@ -5,6 +5,11 @@
 
 struct job_queue {
   int size;
+  int capacity;
+  int top;
+  int bottom;
+  int die;
+  void* data[];
 };
 
 // Initialise a job queue with the given capacity.  The queue starts out
