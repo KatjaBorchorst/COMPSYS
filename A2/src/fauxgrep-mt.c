@@ -20,10 +20,6 @@
 #include "job_queue.h"
 
 int main(int argc, char * const *argv) {
-  // Initialises a job_queue
-  struct job_queue jq;
-  job_queue_init(&jq, 64);
-  
   if (argc < 2) {
     err(1, "usage: [-n INT] STRING paths...");
     exit(1);
@@ -56,6 +52,15 @@ int main(int argc, char * const *argv) {
   }
 
   assert(0); // Initialise the job queue and some worker threads here.
+
+  // Initialises a job_queue
+  struct job_queue jq;
+  job_queue_init(&jq, 64);
+
+  // Worker threads
+  pthread_t thread0;
+  pthread_t thread1;
+  pthread_t thread2;
 
   // FTS_LOGICAL = follow symbolic links
   // FTS_NOCHDIR = do not change the working directory of the process
