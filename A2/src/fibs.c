@@ -65,6 +65,7 @@ void* worker(void *arg) {
       // that means it's time for this thread to die.
       break;
     }
+    return NULL;
   }
 
   return NULL;
@@ -116,7 +117,7 @@ int main(int argc, char * const *argv) {
   // still be working on their job.
   for (int i = 0; i < num_threads; i++) {
     if (pthread_join(threads[i], NULL) != 0) {
-      err(1, "pthread_join() failed");
+      err(1, "pthread_join() failsed");
     }
   }
 }
