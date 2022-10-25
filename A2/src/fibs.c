@@ -65,7 +65,6 @@ void* worker(void *arg) {
       // that means it's time for this thread to die.
       break;
     }
-    return NULL;
   }
 
   return NULL;
