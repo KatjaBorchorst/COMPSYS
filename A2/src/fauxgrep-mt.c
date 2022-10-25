@@ -19,11 +19,11 @@
 
 #include "job_queue.h"
 
-// Initialises a job_queue
-struct job_queue jq;
-job_queue_init(&jq, 64);
-
 int main(int argc, char * const *argv) {
+  // Initialises a job_queue
+  struct job_queue jq;
+  job_queue_init(&jq, 64);
+  
   if (argc < 2) {
     err(1, "usage: [-n INT] STRING paths...");
     exit(1);
