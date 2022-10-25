@@ -4,6 +4,8 @@
 //
 // You should not need to modify this file.
 
+#include <stdio.h>
+
 #ifndef HISTOGRAM_H
 #define HISTOGRAM_H
 
