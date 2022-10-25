@@ -7,7 +7,7 @@
 
 pthread_mutex_t job_mutex = PTHREAD_MUTEX_INITIALIZER;
 pthread_cond_t empty_cond = PTHREAD_COND_INITIALIZER;
-pthread_cond_t filled_cond = PTHREAD_COND_INITIALIZER;
+// pthread_cond_t empty_cond = PTHREAD_COND_INITIALIZER;
 
 int job_queue_init(struct job_queue *job_queue, int capacity) {
   if (job_queue == NULL){
@@ -50,8 +50,8 @@ int job_queue_destroy(struct job_queue *job_queue) {
   while (job_queue->size != 0) {
     pthread_cond_wait(&empty_cond, &job_mutex);
   }
-  assert(pthread_cond_broadcast (&filled_cond) == 0);
-  assert(pthread_cond_destroy(&filled_cond) == 0);
+  assert(pthread_cond_broadcast (&empty_cond) == 0);
+  assert(pthread_cond_destroy(&empty_cond) == 0);
   assert (pthread_cond_destroy(&empty_cond) == 0);
   assert(pthread_mutex_destroy(&job_mutex) == 0);
   assert(pthread_mutex_unlock(&job_mutex) == 0);
@@ -72,7 +72,7 @@ int job_queue_push(struct job_queue *job_queue, void *data) {
   job_queue->data[job_queue->bottom] = data;
   job_queue->size ++;
   assert(pthread_mutex_unlock(&job_mutex) == 0);
-  assert(pthread_cond_broadcast(&filled_cond) == 0);
+  assert(pthread_cond_broadcast(&empty_cond) == 0);
   return 0;
 }
 
@@ -81,16 +81,14 @@ int job_queue_pop(struct job_queue *job_queue, void **data) {
   assert(pthread_mutex_lock(&job_mutex) == 0);
   while (job_queue->size == 0 && job_queue->die == 0) {
       printf("waiting in filled\n");
-      assert(pthread_cond_wait(&filled_cond, &job_mutex) == 0);
+      assert(pthread_cond_wait(&empty_cond, &job_mutex) == 0);
   } 
   if (job_queue->size == 0 && job_queue->die == 1) {
     return -1;
   }
   printf("test0\n");
-  void *address_data = *data;
+  *data = job_queue->data[job_queue->top]; 
   printf("test1\n");
-  address_data = job_queue->data[job_queue->top]; //pointer??
-  printf("test2\n");
   job_queue->top --;
   job_queue->size --;
   assert(pthread_mutex_unlock(&job_mutex) == 0);
