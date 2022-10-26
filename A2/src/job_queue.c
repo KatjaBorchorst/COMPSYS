@@ -30,14 +30,8 @@ int job_queue_destroy(struct job_queue *job_queue) {
     assert(pthread_cond_wait(&empty_cond, &job_mutex) == 0);
   }
   assert(pthread_cond_broadcast (&filled_cond) == 0); // Wake pop if it is awaiting input. 
-                                                      // (destroy called after last pop)
-  assert(pthread_cond_wait(&die_cond, &job_mutex) == 0);
-  //wait for 
-  assert(pthread_cond_destroy(&filled_cond) == 0);
-  assert (pthread_cond_destroy(&empty_cond) == 0);
-  assert(pthread_cond_destroy(&die_cond) == 0);
+  while (job_queue->size == 0)                                                    
   assert(pthread_mutex_unlock(&job_mutex) == 0); // Unlock before destroying.
-  assert(pthread_mutex_destroy(&job_mutex) == 0);
   return 0;
 }
 
@@ -71,7 +65,6 @@ int job_queue_pop(struct job_queue *job_queue, void **data) {
   } 
   if (job_queue->size == 0 && job_queue->die == 1) {
     pthread_mutex_unlock(&job_mutex);
-    pthread_cond_broadcast(&die_cond);
     return -1;
   }
   *data = job_queue->data[job_queue->top];

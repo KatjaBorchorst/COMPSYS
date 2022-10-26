@@ -15,12 +15,57 @@
 #include "job_queue.h"
 
 pthread_mutex_t stdout_mutex = PTHREAD_MUTEX_INITIALIZER;
+const char *common_needle;
 
 // err.h contains various nonstandard BSD extensions, but they are
 // very handy.
 #include <err.h>
 
 #include "histogram.h"
+
+int fhistogram_mt_file(char const *needle, char const *path) {
+  FILE *f = fopen(path, "r");
+
+  if (f == NULL) {
+    warn("failed to open %s", path);
+    return -1;
+  }
+
+  char *line = NULL;
+  size_t linelen = 0;
+  int lineno = 1;
+
+  while (getline(&line, &linelen, f) != -1) {
+    if (strstr(line, needle) != NULL) {
+      pthread_mutex_lock(&stdout_mutex);
+      printf("%s:%d: %s", path, lineno, line);
+      pthread_mutex_unlock(&stdout_mutex);
+
+    }
+
+    lineno++;
+  }
+
+  free(line);
+  fclose(f);
+
+  return 0;
+}
+
+void* worker (void* arg) {
+  struct job_queue *jq = arg;
+
+  while (1) {
+    const char *nextpath;
+    if (job_queue_pop(jq, (void**)&nextpath) == 0) {
+      fauxgrep_mt_file(common_needle, nextpath);
+      free((void*)nextpath);
+    } else {
+      exit(0);
+    }
+  }
+  return NULL;
+}
 
 int main(int argc, char * const *argv) {
   if (argc < 2) {
@@ -49,7 +94,21 @@ int main(int argc, char * const *argv) {
     paths = &argv[1];
   }
 
-  assert(0); // Initialise the job queue and some worker threads here.
+  // Initialise the job queue and some worker threads here.
+  struct job_queue jq;
+  job_queue_init(&jq, 64);
+
+
+  // Launching n worker threads.
+  int i;
+  int n = num_threads;
+  pthread_t threads[n];
+  for (i = 0; i < n; i++) {
+    if (pthread_create(&threads[i], NULL, worker, &jq) != 0) {
+      err(1, "pthread_create() failed");
+    }
+  }
+
 
   // FTS_LOGICAL = follow symbolic links
   // FTS_NOCHDIR = do not change the working directory of the process
@@ -70,7 +129,7 @@ int main(int argc, char * const *argv) {
     case FTS_D:
       break;
     case FTS_F:
-      assert(0); // Process the file p->fts_path, somehow.
+      job_queue_push(&jq, strdup(p->fts_path)); // Process the file p->fts_path, somehow.
       break;
     default:
       break;
@@ -79,7 +138,7 @@ int main(int argc, char * const *argv) {
 
   fts_close(ftsp);
 
-  assert(0); // Shut down the job queue and the worker threads here.
+  job_queue_destroy(&jq); // Shut down the job queue and the worker threads here.
 
   move_lines(9);
 
