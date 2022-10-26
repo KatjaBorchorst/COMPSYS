@@ -60,7 +60,7 @@ void* worker (void* arg) {
       fauxgrep_mt_file(common_needle, nextpath);
       free((void*)nextpath);
     } else {
-      break; // Shuts down the workers.
+      exit(0);
     }
   }
   return NULL;
@@ -136,7 +136,6 @@ int main(int argc, char * const *argv) {
       break;
     case FTS_F:
       job_queue_push(&jq, strdup(p->fts_path)); // Process the file p->fts_path, somehow.
-      //fauxgrep_mt_file(needle, p->fts_path);
       break;
     default:
       break;

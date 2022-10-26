@@ -5,9 +5,6 @@
 
 #include "job_queue.h"
 
-pthread_mutex_t job_mutex = PTHREAD_MUTEX_INITIALIZER;
-pthread_cond_t empty_cond = PTHREAD_COND_INITIALIZER;
-pthread_cond_t filled_cond = PTHREAD_COND_INITIALIZER;
 
 int job_queue_init(struct job_queue *job_queue, int capacity) {
   if (job_queue == NULL){
@@ -18,6 +15,10 @@ int job_queue_init(struct job_queue *job_queue, int capacity) {
   job_queue->top = 0;
   job_queue->bottom = 0;
   job_queue->die = 0;
+  pthread_mutex_init(&job_mutex, NULL);
+  pthread_cond_init(&empty_cond, NULL);
+  pthread_cond_init(&filled_cond, NULL);
+  pthread_cond_init(&die_cond, NULL);
   return 0;
 }
 
@@ -28,9 +29,13 @@ int job_queue_destroy(struct job_queue *job_queue) {
   while (job_queue->size != 0) {
     assert(pthread_cond_wait(&empty_cond, &job_mutex) == 0);
   }
-  assert(pthread_cond_broadcast (&filled_cond) == 0);
+  assert(pthread_cond_broadcast (&filled_cond) == 0); // Wake pop if it is awaiting input. 
+                                                      // (destroy called after last pop)
+  assert(pthread_cond_wait(&die_cond, &job_mutex) == 0);
+  //wait for 
   assert(pthread_cond_destroy(&filled_cond) == 0);
   assert (pthread_cond_destroy(&empty_cond) == 0);
+  assert(pthread_cond_destroy(&die_cond) == 0);
   assert(pthread_mutex_unlock(&job_mutex) == 0); // Unlock before destroying.
   assert(pthread_mutex_destroy(&job_mutex) == 0);
   return 0;
@@ -65,9 +70,11 @@ int job_queue_pop(struct job_queue *job_queue, void **data) {
       assert(pthread_cond_wait(&filled_cond, &job_mutex) == 0);
   } 
   if (job_queue->size == 0 && job_queue->die == 1) {
+    pthread_mutex_unlock(&job_mutex);
+    pthread_cond_broadcast(&die_cond);
     return -1;
   }
-  *data = job_queue->data[job_queue->top]; // Pointer??
+  *data = job_queue->data[job_queue->top];
   if (job_queue->top != job_queue->bottom) {
     job_queue->top ++;
   }

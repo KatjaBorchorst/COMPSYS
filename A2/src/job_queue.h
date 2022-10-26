@@ -3,6 +3,11 @@
 
 #include <pthread.h>
 
+pthread_mutex_t job_mutex;
+pthread_cond_t empty_cond;
+pthread_cond_t filled_cond;
+pthread_cond_t die_cond;
+
 struct job_queue {
   int size;
   int capacity;
