@@ -1,5 +1,5 @@
 CC=gcc
-CFLAGS=-g -Wall -Wextra -pedantic -std=gnu99 -pthread 
+CFLAGS=-g -Wall -Wextra -pedantic -std=gnu99 -pthread -fsanitize=address
 EXAMPLES=fibs fauxgrep fauxgrep-mt fhistogram fhistogram-mt
 
 .PHONY: all test clean ../src.zip

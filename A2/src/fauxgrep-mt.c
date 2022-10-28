@@ -37,11 +37,11 @@ int fauxgrep_mt_file(char const *needle, char const *path) {
   while (getline(&line, &linelen, f) != -1) {
     if (strstr(line, needle) != NULL) {
       pthread_mutex_lock(&stdout_mutex);
+      //printf("does it go here\n");
       printf("%s:%d: %s", path, lineno, line);
+      //printf("does it go here pt.2\n");
       pthread_mutex_unlock(&stdout_mutex);
-
     }
-
     lineno++;
   }
 
@@ -57,26 +57,25 @@ void* worker (void* arg) {
   while (1) {
     const char *nextpath;
     if (job_queue_pop(jq, (void**)&nextpath) == 0) {
-      fauxgrep_mt_file(common_needle, nextpath);
+      //printf("nextpath: %s\n", nextpath);
+      //printf("common_needle: %s\n", common_needle);
+      assert(fauxgrep_mt_file(common_needle, nextpath) == 0);
+      //printf("function has been called\n");
       free((void*)nextpath);
     } else {
       exit(0);
     }
   }
-  return NULL;
 }
  
 int main(int argc, char * const *argv) {
-  printf("test\n");
   if (argc < 2) {
-    printf("test0\n");
     err(1, "usage: [-n INT] STRING paths...");
     exit(1);
   }
 
   int num_threads = 1;
   char const *needle = argv[1];
-  common_needle = needle;
   char * const *paths = &argv[2];
 
 
@@ -100,6 +99,7 @@ int main(int argc, char * const *argv) {
     needle = argv[1];
     paths = &argv[2];
   }
+  common_needle = needle;
 
   // Initialises a job_queue.
   struct job_queue jq;
@@ -108,9 +108,8 @@ int main(int argc, char * const *argv) {
 
   // Launching n worker threads.
   int i;
-  int n = num_threads;
-  pthread_t threads[n];
-  for (i = 0; i < n; i++) {
+  pthread_t threads[num_threads];
+  for (i = 0; i < num_threads; i++) {
     if (pthread_create(&threads[i], NULL, worker, &jq) != 0) {
       err(1, "pthread_create() failed");
     }
@@ -135,7 +134,7 @@ int main(int argc, char * const *argv) {
     case FTS_D:
       break;
     case FTS_F:
-      job_queue_push(&jq, strdup(p->fts_path)); // Process the file p->fts_path, somehow.
+      assert(job_queue_push(&jq, strdup(p->fts_path))==0); // Process the file p->fts_path, somehow.
       break;
     default:
       break;

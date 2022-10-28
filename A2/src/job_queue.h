@@ -14,7 +14,8 @@ struct job_queue {
   int top;
   int bottom;
   int die;
-  void* data[];
+  void* data[40000]; //size of array has to be able to contain all data, since the top is not moved
+                    //back to 0, when elements popped.
 };
 
 // Initialise a job queue with the given capacity.  The queue starts out
