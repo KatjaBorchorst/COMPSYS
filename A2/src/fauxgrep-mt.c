@@ -136,7 +136,6 @@ int main(int argc, char * const *argv) {
       break;
     }
   }
-   assert(job_queue_destroy(&jq) == 0); // Shuts down the job queue.
 
   // Wait for all threads to finish.  This is important, at some may
   // still be working on their job.
@@ -146,6 +145,8 @@ int main(int argc, char * const *argv) {
       exit(0);
     }
   }
+
+  assert(job_queue_destroy(&jq) == 0); // Shuts down the job queue.
   free(threads);
   fts_close(ftsp);
  
