@@ -23,45 +23,55 @@ const char *common_needle;
 
 #include "histogram.h"
 
-int fhistogram_mt_file(char const *needle, char const *path) {
+int fhistogram_mt_file(char const *path) {
   FILE *f = fopen(path, "r");
 
+  int local_histogram[8] = {0}; 
+
   if (f == NULL) {
+    fflush(stdout);
     warn("failed to open %s", path);
     return -1;
   }
 
-  char *line = NULL;
-  size_t linelen = 0;
-  int lineno = 1;
+  int i = 0
 
-  while (getline(&line, &linelen, f) != -1) {
-    if (strstr(line, needle) != NULL) {
+  char c;
+  while(fread(&c, sizeof(c), 1, f) == 1) 
+  {
+    pthread_mutex_lock(&stdout_mutex);
+    i++;
+    update_histogram(local_hiatogram, c);
+    pthread_mutex_unlock(&stdout_mutex);
+
+    if ((i % 100000) == 0) {
       pthread_mutex_lock(&stdout_mutex);
-      printf("%s:%d: %s", path, lineno, line);
+      merge_histogram(local_histogram, c);
+      print_histogram(global_histogram);
       pthread_mutex_unlock(&stdout_mutex);
-
     }
-
-    lineno++;
   }
 
-  free(line);
   fclose(f);
+  pthread_mutex_lock(&stdout_mutex);
+  merge_histogram(local_histogram, global_histogram);
+  print_histogram(global_histogram);
+  pthread_mutex_unlock(&stdout_mutex);
 
   return 0;
 }
 
+
 void* worker (void* arg) {
-  struct job_queue *jq = arg;
+  job_queue *jq = arg;
 
   while (1) {
-    const char *nextpath;
-    if (job_queue_pop(jq, (void**)&nextpath) == 0) {
-      fauxgrep_mt_file(common_needle, nextpath);
-      free((void*)nextpath);
+    char *line;
+    if (job_queue_pop(jq, (void**)&line) == 0) {
+      fhistogram(line);
+      free(line);
     } else {
-      exit(0);
+      break;
     }
   }
   return NULL;
@@ -95,7 +105,7 @@ int main(int argc, char * const *argv) {
   }
 
   // Initialise the job queue and some worker threads here.
-  struct job_queue jq;
+  job_queue jq;
   job_queue_init(&jq, 64);
 
 
@@ -139,6 +149,12 @@ int main(int argc, char * const *argv) {
   fts_close(ftsp);
 
   job_queue_destroy(&jq); // Shut down the job queue and the worker threads here.
+  for (int i = 0; i < num_threads; i++) {
+    if (pthread_join(threads[i], NULL) ! = 0) {
+      err(1, "pthread_join() faild");
+    }
+  }
+
 
   move_lines(9);
 
