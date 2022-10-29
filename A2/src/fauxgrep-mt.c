@@ -39,15 +39,12 @@ int fauxgrep_mt_file(char const *needle, char const *path) {
       pthread_mutex_lock(&stdout_mutex);
       printf("%s:%d: %s", path, lineno, line);
       pthread_mutex_unlock(&stdout_mutex);
-
     }
-
     lineno++;
   }
-
   free(line);
   fclose(f);
-
+  printf("jeg er fææærdig :)\n");
   return 0;
 }
 
@@ -56,8 +53,9 @@ void* worker (void* arg) {
 
   while (1) {
     const char *nextpath;
-    if (job_queue_pop(jq, (void**)&nextpath) == 0) {
-      fauxgrep_mt_file(common_needle, nextpath);
+    if (job_queue_pop(jq, (void**)&nextpath) == 0) { // Pop only returns 0 when done waiting and 
+                                                    // successfully popping the element.
+      assert(fauxgrep_mt_file(common_needle, nextpath) == 0);
       free((void*)nextpath);
     } else {
       exit(0);
@@ -67,16 +65,13 @@ void* worker (void* arg) {
 }
  
 int main(int argc, char * const *argv) {
-  printf("test\n");
   if (argc < 2) {
-    printf("test0\n");
     err(1, "usage: [-n INT] STRING paths...");
     exit(1);
   }
 
   int num_threads = 1;
   char const *needle = argv[1];
-  common_needle = needle;
   char * const *paths = &argv[2];
 
 
@@ -100,6 +95,7 @@ int main(int argc, char * const *argv) {
     needle = argv[1];
     paths = &argv[2];
   }
+  common_needle = needle; // Global var since all threads search for the same needle.
 
   // Initialises a job_queue.
   struct job_queue jq;
@@ -108,9 +104,8 @@ int main(int argc, char * const *argv) {
 
   // Launching n worker threads.
   int i;
-  int n = num_threads;
-  pthread_t threads[n];
-  for (i = 0; i < n; i++) {
+  pthread_t *threads = calloc(num_threads, sizeof(pthread_t)); // Allocate space for the threads.
+  for (i = 0; i < num_threads; i++) {
     if (pthread_create(&threads[i], NULL, worker, &jq) != 0) {
       err(1, "pthread_create() failed");
     }
@@ -135,15 +130,25 @@ int main(int argc, char * const *argv) {
     case FTS_D:
       break;
     case FTS_F:
-      job_queue_push(&jq, strdup(p->fts_path)); // Process the file p->fts_path, somehow.
+      assert(job_queue_push(&jq, strdup(p->fts_path)) == 0); // Push the file p->fts_path.
       break;
     default:
       break;
     }
   }
 
-  fts_close(ftsp);
-  job_queue_destroy(&jq); // Shuts down the job queue.
+  // Wait for all threads to finish.  This is important, at some may
+  // still be working on their job.
+  for (int i = 0; i < num_threads; i++) {
+    if (pthread_join(threads[i], NULL) != 0) {
+      err(1, "pthread_join() failsed");
+      exit(0);
+    }
+  }
 
+  assert(job_queue_destroy(&jq) == 0); // Shuts down the job queue.
+  free(threads);
+  fts_close(ftsp);
+ 
   return 0;
 }
