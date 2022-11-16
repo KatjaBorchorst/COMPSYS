@@ -21,6 +21,9 @@ char my_port[PORT_LEN];
 
 int c;
 
+rio_t rio;
+int clientfd;
+
 /*
  * Gets a sha256 hash of specified data, sourcedata. The hash itself is
  * placed into the given variable 'hash'. Any size can be created, but a
@@ -80,16 +83,25 @@ void get_signature(char* password, char* salt, hashdata_t* hash)
 {
     // Your code here. This function has been added as a guide, but feel free 
     // to add more, or work in other parts of the code
+    char to_hash[strlen(password) + strlen(salt)];
+    strcpy(to_hash, strcat(password, salt));
+    get_data_sha(to_hash, *hash, strlen(to_hash), SHA256_HASH_SIZE);
+
+   
 }
 
 /*
  * Register a new user with a server by sending the username and signature to 
  * the server
  */
-void register_user(char* username, char* password, char* salt)
-{
-    // Your code here. This function has been added as a guide, but feel free 
-    // to add more, or work in other parts of the code
+void register_user(char* username, char* password, char* salt){
+    hashdata_t hash;
+    get_signature(password, salt, &hash);
+    
+    clientfd = Open_clientfd(server_ip, server_port);
+   
+    Rio_readinitb(&rio, clientfd);
+    Rio_writen(clientfd, hash, SHA256_HASH_SIZE);
 }
 
 /*
@@ -97,10 +109,17 @@ void register_user(char* username, char* password, char* salt)
  * a file path. Note that this function should be able to deal with both small 
  * and large files. 
  */
-void get_file(char* username, char* password, char* salt, char* to_get)
-{
-    // Your code here. This function has been added as a guide, but feel free 
-    // to add more, or work in other parts of the code
+void get_file(char* username, char* password, char* salt, char* to_get){
+    rio_t rio;
+    int clientfd;
+
+    hashdata_t hash;
+    get_signature(password, salt, &hash);
+    
+    clientfd = Open_clientfd(server_ip, server_port);
+   
+    Rio_readinitb(&rio, clientfd);
+    //Rio_writen(clientfd, hash, SHA256_HASH_SIZE);
 }
 
 int main(int argc, char **argv)
@@ -179,14 +198,14 @@ int main(int argc, char **argv)
     // Note that a random salt should be used, but you may find it easier to
     // repeatedly test the same user credentials by using the hard coded value
     // below instead, and commenting out this randomly generating section.
-    for (int i=0; i<SALT_LEN; i++)
-    {
-        user_salt[i] = 'a' + (random() % 26);
-    }
-    user_salt[SALT_LEN] = '\0';
-    //strncpy(user_salt, 
-    //    "0123456789012345678901234567890123456789012345678901234567890123\0", 
-    //    SALT_LEN+1);
+    // for (int i=0; i<SALT_LEN; i++)
+    // {
+    //     user_salt[i] = 'a' + (random() % 26);
+    // }
+    // user_salt[SALT_LEN] = '\0';
+    strncpy(user_salt, 
+       "0123456789012345678901234567890123456789012345678901234567890123\0", 
+       SALT_LEN+1);
 
     fprintf(stdout, "Using salt: %s\n", user_salt);
 
