@@ -31,16 +31,14 @@ int clientfd;
  * 'SHA256_HASH_SIZE', that has been defined in sha256.h
  */
 void get_data_sha(const char* sourcedata, hashdata_t hash, uint32_t data_size, 
-    int hash_size)
-{
+    int hash_size){
   SHA256_CTX shactx;
   unsigned char shabuffer[hash_size];
   sha256_init(&shactx);
   sha256_update(&shactx, sourcedata, data_size);
   sha256_final(&shactx, shabuffer);
 
-  for (int i=0; i<hash_size; i++)
-  {
+  for (int i=0; i<hash_size; i++){
     hash[i] = shabuffer[i];
   }
 }
@@ -51,8 +49,7 @@ void get_data_sha(const char* sourcedata, hashdata_t hash, uint32_t data_size,
  * a normal size for the hash would be given by the global variable
  * 'SHA256_HASH_SIZE', that has been defined in sha256.h
  */
-void get_file_sha(const char* sourcefile, hashdata_t hash, int size)
-{
+void get_file_sha(const char* sourcefile, hashdata_t hash, int size){
     int casc_file_size;
 
     FILE* fp = Fopen(sourcefile, "rb");
@@ -79,29 +76,61 @@ void get_file_sha(const char* sourcefile, hashdata_t hash, int size)
  * as handed out, this function is never called. You will need to decide where 
  * it is sensible to do so.
  */
-void get_signature(char* password, char* salt, hashdata_t* hash)
-{
+void get_signature(char* password, char* salt, hashdata_t* hash){
     // Your code here. This function has been added as a guide, but feel free 
     // to add more, or work in other parts of the code
+    PasswordAndSalt_t 
     char to_hash[strlen(password) + strlen(salt)];
     strcpy(to_hash, strcat(password, salt));
     get_data_sha(to_hash, *hash, strlen(to_hash), SHA256_HASH_SIZE);
-
-   
 }
+
+// //places username and signature in usigned char array that header pointer points to
+// void create_header(char* username, char* password, char* salt, unsigned char *header) {
+//     hashdata_t signature;
+//     get_signature(password, salt, &signature);
+
+//     //insert username into header
+//     for (size_t i = 0; i < strlen(username); i++){
+//         header[i] = username[i]; 
+//     }
+//     //padding
+//     for (size_t i = strlen(username); i < USERNAME_LEN; i++) {
+//         header[i] = 0;
+//     }
+//     //insert signature into header
+//     for (size_t i = USERNAME_LEN; i < REQUEST_HEADER_LEN-4; i++){
+//         header[i] = signature[i-(USERNAME_LEN)];
+//     }
+// }
 
 /*
  * Register a new user with a server by sending the username and signature to 
  * the server
  */
 void register_user(char* username, char* password, char* salt){
-    hashdata_t hash;
-    get_signature(password, salt, &hash);
+    // unsigned char header[REQUEST_HEADER_LEN-4]; 
+    // unsigned char length[4];
+    // unsigned char reqHeader[REQUEST_HEADER_LEN];
+    
+    // //insert 0's in length field
+    // for (size_t i = 0; i < 4; i++) {
+    //     length[i] = 0;
+    // }
+
+    // //concat
+    // create_header(username, password, salt, header);
+    // memcpy(&reqHeader, &header, REQUEST_HEADER_LEN-4);
+    // memcpy(&reqHeader+(REQUEST_HEADER_LEN-4), &length, 4);
+    
     
     clientfd = Open_clientfd(server_ip, server_port);
-   
     Rio_readinitb(&rio, clientfd);
-    Rio_writen(clientfd, hash, SHA256_HASH_SIZE);
+    Rio_writen(clientfd, &reqHeader, REQUEST_HEADER_LEN);
+
+    for (size_t i = 0; i < REQUEST_HEADER_LEN; i++) {
+        printf("%x", reqHeader[i]);
+    }
 }
 
 /*
@@ -110,16 +139,16 @@ void register_user(char* username, char* password, char* salt){
  * and large files. 
  */
 void get_file(char* username, char* password, char* salt, char* to_get){
-    rio_t rio;
-    int clientfd;
-
     hashdata_t hash;
+    unsigned char header[REQUEST_HEADER_LEN-4]; 
+
+    create_header(username, password, salt, header);
+
     get_signature(password, salt, &hash);
-    
     clientfd = Open_clientfd(server_ip, server_port);
-   
+
     Rio_readinitb(&rio, clientfd);
-    //Rio_writen(clientfd, hash, SHA256_HASH_SIZE);
+    Rio_writen(clientfd, hash, SHA256_HASH_SIZE);
 }
 
 int main(int argc, char **argv)
