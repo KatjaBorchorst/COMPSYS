@@ -84,8 +84,8 @@ void get_signature(char* password, char* salt, hashdata_t* hash){
     get_data_sha(to_hash, *hash, strlen(to_hash), SHA256_HASH_SIZE);
 }
 
-//places username and signature in usigned char array with appropriate padding
-void create_header(char* username, char* password, char* salt, unsigned char *header) {
+//salts signature and places the username and signature in usigned char array with padding
+void build_header(char* username, char* password, char* salt, unsigned char *header) {
     hashdata_t signature;
     get_signature(password, salt, &signature);
 
@@ -103,16 +103,35 @@ void create_header(char* username, char* password, char* salt, unsigned char *he
     }
 }
 
+void processServerResponse(struct ServerHeader *serverheader) {
+    unsigned char* response[RESPONSE_HEADER_LEN];
+    Rio_readnb(&rio, &response, RESPONSE_HEADER_LEN);
+    serverheader->responseLen = ntohl(*(uint32_t*)&response[0]); //Convert to host-byte-order.
+
+    // uint32_t status;
+    // Rio_readnb(&rio, &status, 4);
+    serverheader->status = ntohl(*(uint32_t*)&response[4]); //Convert to host-byte-order.
+
+    // uint32_t blockNum;
+    // Rio_readnb(&rio, &blockNum, 4);
+    serverheader->blockNum = ntohl(*(uint32_t*)&response[8]); //Convert to host-byte-order.
+
+    // uint32_t blockCount;
+    // Rio_readnb(&rio, &blockCount, 4);
+    serverheader->blockCount = ntohl(*(uint32_t*)&response[12]); //Convert to host-byte-order.
+    serverheader->blockCount = be64toh(&response[16]);
+    serverheader->blockCount = be64toh(&response[16+SHA256_HASH_SIZE]);
+}
+
 /*
  * Register a new user with a server by sending the username and signature to 
  * the server
  */
 void register_user(char* username, char* password, char* salt){
     unsigned char header[REQUEST_HEADER_LEN-4]; 
-    unsigned char length[4];
     unsigned char reqHeader[REQUEST_HEADER_LEN];
  
-    create_header(username, password, salt, header);
+    build_header(username, password, salt, header);
 
     //concat
     memcpy(&reqHeader, &header, REQUEST_HEADER_LEN-4);
@@ -126,9 +145,16 @@ void register_user(char* username, char* password, char* salt){
     //     printf("[%02X]", reqHeader[i]);
     // }
 
-    clientfd = Open_clientfd(server_ip, server_port);
-    Rio_readinitb(&rio, clientfd);
-    Rio_writen(clientfd, &reqHeader, REQUEST_HEADER_LEN);
+    // Initialise connection and rio.
+    clientfd = Open_clientfd(server_ip, server_port); 
+    Rio_readinitb(&rio, clientfd);;
+
+    Rio_writen(clientfd, &reqHeader, REQUEST_HEADER_LEN); // Send reqHeader.
+    
+    struct ServerResponse *ServerResponse = malloc(sizeof(struct ServerResponse)); // Initializes a serverHead.
+    processServerResponse(&ServerResponse->header);
+    printf("msg lengh: %i", ServerResponse->header.responseLen);
+    
 }
 
 /*
@@ -137,22 +163,25 @@ void register_user(char* username, char* password, char* salt){
  * and large files. 
  */
 void get_file(char* username, char* password, char* salt, char* to_get){
-    hashdata_t hash;
-    unsigned char header[REQUEST_HEADER_LEN-4]; 
+    unsigned char header[REQUEST_HEADER_LEN-4]; // Unsigned char-array.
+    build_header(username, password, salt, header); // Builds the header.
+    struct ServerHeader servHead;
 
-    //create_header(username, password, salt, header);
+    //for (servHead.blockCount[] );
 
-    get_signature(password, salt, &hash);
-    clientfd = Open_clientfd(server_ip, server_port);
 
-    Rio_readinitb(&rio, clientfd);
-    Rio_writen(clientfd, hash, SHA256_HASH_SIZE);
+    // hashdata_t hash;
+
+    // get_signature(password, salt, &hash);
+    // clientfd = Open_clientfd(server_ip, server_port);
+
+    // Rio_readinitb(&rio, clientfd);
+    // Rio_writen(clientfd, hash, SHA256_HASH_SIZE);
 }
 
-int main(int argc, char **argv)
-{
+int main(int argc, char **argv){
     // Users should call this script with a single argument describing what 
-    // config to use
+    // config to use.
     if (argc != 2)
     {
         fprintf(stderr, "Usage: %s <config file>\n", argv[0]);
@@ -160,7 +189,7 @@ int main(int argc, char **argv)
     } 
 
     // Read in configuration options. Should include a client_directory, 
-    // client_ip, client_port, server_ip, and server_port
+    // client_ip, client_port, server_ip, and server_port.
     char buffer[128];
     fprintf(stderr, "Got config path at: %s\n", argv[1]);
     FILE* fp = Fopen(argv[1], "r");
@@ -225,13 +254,13 @@ int main(int argc, char **argv)
     // Note that a random salt should be used, but you may find it easier to
     // repeatedly test the same user credentials by using the hard coded value
     // below instead, and commenting out this randomly generating section.
-    for (int i=0; i<SALT_LEN; i++){
-        user_salt[i] = 'a' + (random() % 26);
-    }
-    user_salt[SALT_LEN] = '\0';
-    // strncpy(user_salt, 
-    //    "0123456789012345678901234567890123456789012345678901234567890123\0", 
-    //    SALT_LEN+1);
+    // for (int i=0; i<SALT_LEN; i++){
+    //     user_salt[i] = 'a' + (random() % 26);
+    // }
+    // user_salt[SALT_LEN] = '\0';
+    strncpy(user_salt, 
+       "0123456789012345678901234567890123456789012345678901234567890123\0", 
+       SALT_LEN+1);
 
     fprintf(stdout, "Using salt: %s\n", user_salt);
 

@@ -24,3 +24,20 @@ typedef struct Request {
     RequestHeader_t header;
     char payload[PATH_LEN];
 } Request_t;
+
+// container for server headers
+typedef struct ServerHeader {
+    uint32_t responseLen;
+    uint32_t status;
+    uint32_t blockNum;
+    uint32_t blockCount;
+    hashdata_t blockHash;
+    hashdata_t totalHash;
+} ServerHeader_t;
+
+// container for deassemling server response messages
+typedef struct ServerResponse {
+    struct ServerHeader header;
+    char payload[MAX_PAYLOAD];
+} ServerResponse_t;
+
