@@ -79,58 +79,56 @@ void get_file_sha(const char* sourcefile, hashdata_t hash, int size){
 void get_signature(char* password, char* salt, hashdata_t* hash){
     // Your code here. This function has been added as a guide, but feel free 
     // to add more, or work in other parts of the code
-    PasswordAndSalt_t 
     char to_hash[strlen(password) + strlen(salt)];
     strcpy(to_hash, strcat(password, salt));
     get_data_sha(to_hash, *hash, strlen(to_hash), SHA256_HASH_SIZE);
 }
 
-// //places username and signature in usigned char array that header pointer points to
-// void create_header(char* username, char* password, char* salt, unsigned char *header) {
-//     hashdata_t signature;
-//     get_signature(password, salt, &signature);
+//places username and signature in usigned char array with appropriate padding
+void create_header(char* username, char* password, char* salt, unsigned char *header) {
+    hashdata_t signature;
+    get_signature(password, salt, &signature);
 
-//     //insert username into header
-//     for (size_t i = 0; i < strlen(username); i++){
-//         header[i] = username[i]; 
-//     }
-//     //padding
-//     for (size_t i = strlen(username); i < USERNAME_LEN; i++) {
-//         header[i] = 0;
-//     }
-//     //insert signature into header
-//     for (size_t i = USERNAME_LEN; i < REQUEST_HEADER_LEN-4; i++){
-//         header[i] = signature[i-(USERNAME_LEN)];
-//     }
-// }
+    //insert username into header
+    for (size_t i = 0; i < strlen(username); i++){
+        header[i] = username[i]; 
+    }
+    //padding
+    for (size_t i = strlen(username); i < USERNAME_LEN; i++) {
+        header[i] = 0;
+    }
+    //insert signature into header
+    for (size_t i = USERNAME_LEN; i < REQUEST_HEADER_LEN-4; i++){
+        header[i] = signature[i-(USERNAME_LEN)];
+    }
+}
 
 /*
  * Register a new user with a server by sending the username and signature to 
  * the server
  */
 void register_user(char* username, char* password, char* salt){
-    // unsigned char header[REQUEST_HEADER_LEN-4]; 
-    // unsigned char length[4];
-    // unsigned char reqHeader[REQUEST_HEADER_LEN];
+    unsigned char header[REQUEST_HEADER_LEN-4]; 
+    unsigned char length[4];
+    unsigned char reqHeader[REQUEST_HEADER_LEN];
+ 
+    create_header(username, password, salt, header);
+
+    //concat
+    memcpy(&reqHeader, &header, REQUEST_HEADER_LEN-4);
+
+    //insert 0's in last 4 bytes
+    for (size_t i = (REQUEST_HEADER_LEN-4); i < REQUEST_HEADER_LEN; i++) {
+        reqHeader[i] = 0;
+    }
     
-    // //insert 0's in length field
-    // for (size_t i = 0; i < 4; i++) {
-    //     length[i] = 0;
+    // for (size_t i = 0; i < REQUEST_HEADER_LEN; i++) {
+    //     printf("[%02X]", reqHeader[i]);
     // }
 
-    // //concat
-    // create_header(username, password, salt, header);
-    // memcpy(&reqHeader, &header, REQUEST_HEADER_LEN-4);
-    // memcpy(&reqHeader+(REQUEST_HEADER_LEN-4), &length, 4);
-    
-    
     clientfd = Open_clientfd(server_ip, server_port);
     Rio_readinitb(&rio, clientfd);
     Rio_writen(clientfd, &reqHeader, REQUEST_HEADER_LEN);
-
-    for (size_t i = 0; i < REQUEST_HEADER_LEN; i++) {
-        printf("%x", reqHeader[i]);
-    }
 }
 
 /*
@@ -142,7 +140,7 @@ void get_file(char* username, char* password, char* salt, char* to_get){
     hashdata_t hash;
     unsigned char header[REQUEST_HEADER_LEN-4]; 
 
-    create_header(username, password, salt, header);
+    //create_header(username, password, salt, header);
 
     get_signature(password, salt, &hash);
     clientfd = Open_clientfd(server_ip, server_port);
@@ -227,14 +225,13 @@ int main(int argc, char **argv)
     // Note that a random salt should be used, but you may find it easier to
     // repeatedly test the same user credentials by using the hard coded value
     // below instead, and commenting out this randomly generating section.
-    // for (int i=0; i<SALT_LEN; i++)
-    // {
-    //     user_salt[i] = 'a' + (random() % 26);
-    // }
-    // user_salt[SALT_LEN] = '\0';
-    strncpy(user_salt, 
-       "0123456789012345678901234567890123456789012345678901234567890123\0", 
-       SALT_LEN+1);
+    for (int i=0; i<SALT_LEN; i++){
+        user_salt[i] = 'a' + (random() % 26);
+    }
+    user_salt[SALT_LEN] = '\0';
+    // strncpy(user_salt, 
+    //    "0123456789012345678901234567890123456789012345678901234567890123\0", 
+    //    SALT_LEN+1);
 
     fprintf(stdout, "Using salt: %s\n", user_salt);
 
