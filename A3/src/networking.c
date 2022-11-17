@@ -163,9 +163,38 @@ void register_user(char* username, char* password, char* salt){
  * and large files. 
  */
 void get_file(char* username, char* password, char* salt, char* to_get){
-    unsigned char header[REQUEST_HEADER_LEN-4]; // Unsigned char-array.
-    build_header(username, password, salt, header); // Builds the header.
-    struct ServerHeader servHead;
+    unsigned char header[REQUEST_HEADER_LEN-4]; 
+    unsigned char reqHeader[REQUEST_HEADER_LEN];
+ 
+    build_header(username, password, salt, header);
+
+    // Concat.
+    memcpy(&reqHeader, &header, REQUEST_HEADER_LEN-4);
+
+    // Insert to_get's bytes in the last 4 bytes of the request.
+    for (size_t j = (long int) to_get; j < REQUEST_HEADER_LEN; j++) {
+        for (size_t i = (REQUEST_HEADER_LEN-4); i < REQUEST_HEADER_LEN; i++) {
+        reqHeader[i] = to_get[j];
+        }   
+    }
+
+    // Initialise connection and rio.
+    clientfd = Open_clientfd(server_ip, server_port); 
+    Rio_readinitb(&rio, clientfd);;
+
+    Rio_writen(clientfd, &reqHeader, REQUEST_HEADER_LEN); // Send reqHeader.
+    
+    //while ()
+
+
+    //struct ServerHeader servResponse;
+    //printf("test\n");
+    //if (servResponse.blockCount != servResponse.blockNum) {
+    //}
+
+    //unsigned char header[REQUEST_HEADER_LEN-4]; // Unsigned char-array.
+    //build_header(username, password, salt, header); // Builds the header.
+    //struct ServerHeader servHead;
 
     //for (servHead.blockCount[] );
 

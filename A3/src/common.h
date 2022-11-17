@@ -17,7 +17,6 @@
 #define REQUEST_HEADER_LEN                  USERNAME_LEN+SHA256_HASH_SIZE+4
 #define REQUEST_BODY_LEN                    128
 
-
 #define RESPONSE_HEADER_LEN     4+4+4+4+SHA256_HASH_SIZE+SHA256_HASH_SIZE
 #define MAX_MSG_LEN             1024
 #define MAX_PAYLOAD             MAX_MSG_LEN-(RESPONSE_HEADER_LEN)
