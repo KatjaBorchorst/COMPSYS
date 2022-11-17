@@ -24,6 +24,9 @@ int c;
 rio_t rio;
 int clientfd;
 
+unsigned char header[REQUEST_HEADER_LEN-4]; 
+unsigned char reqHeader[REQUEST_HEADER_LEN];
+
 /*
  * Gets a sha256 hash of specified data, sourcedata. The hash itself is
  * placed into the given variable 'hash'. Any size can be created, but a
@@ -77,8 +80,6 @@ void get_file_sha(const char* sourcefile, hashdata_t hash, int size){
  * it is sensible to do so.
  */
 void get_signature(char* password, char* salt, hashdata_t* hash){
-    // Your code here. This function has been added as a guide, but feel free 
-    // to add more, or work in other parts of the code
     char to_hash[strlen(password) + strlen(salt)];
     strcpy(to_hash, strcat(password, salt));
     get_data_sha(to_hash, *hash, strlen(to_hash), SHA256_HASH_SIZE);
@@ -131,9 +132,6 @@ void process_server_response(struct ServerResponse* serverResponse) {
  * the server
  */
 void register_user(char* username, char* password, char* salt){
-    unsigned char header[REQUEST_HEADER_LEN-4]; 
-    unsigned char reqHeader[REQUEST_HEADER_LEN];
- 
     build_header(username, password, salt, header);
 
     //concat
@@ -148,7 +146,7 @@ void register_user(char* username, char* password, char* salt){
     clientfd = Open_clientfd(server_ip, server_port); 
     Rio_readinitb(&rio, clientfd);;
 
-    Rio_writen(clientfd, &reqHeader, REQUEST_HEADER_LEN); // Send reqHeader.
+    Rio_writen(clientfd, reqHeader, REQUEST_HEADER_LEN); // Send reqHeader.
     
     // Process response from server.
     struct ServerResponse *ServerResponse = malloc(sizeof(struct ServerResponse)); 
@@ -170,46 +168,14 @@ void register_user(char* username, char* password, char* salt){
  * a file path. Note that this function should be able to deal with both small 
  * and large files. 
  */
-void get_file(char* username, char* password, char* salt, char* to_get){
-    unsigned char header[REQUEST_HEADER_LEN-4]; 
-    unsigned char reqHeader[REQUEST_HEADER_LEN];
- 
-    build_header(username, password, salt, header);
-
-    // Concat.
-    memcpy(&reqHeader, &header, REQUEST_HEADER_LEN-4);
-
-    // Insert to_get's bytes in the last 4 bytes of the request.
-    for (size_t j = (long int) to_get; j < REQUEST_HEADER_LEN; j++) {
-        for (size_t i = (REQUEST_HEADER_LEN-4); i < REQUEST_HEADER_LEN; i++) {
-        reqHeader[i] = to_get[j];
-        }   
-    }
-
-    // Initialise connection and rio.
-    clientfd = Open_clientfd(server_ip, server_port); 
-    Rio_readinitb(&rio, clientfd);;
-
+void get_file(char* to_get){
+    uint32_t REQ_LENGTH = sizeof(to_get);           // HUSK AT KOMMENTERE PÅ SIKKEREHD I RAPPORTEN - HASHER KUN ÉN GANG.
+    uint32_t N_ORDER_LENGTH = htonl(REQ_LENGTH);
+    printf("req: %d\n", REQ_LENGTH);
+    printf("n_order: %d\n", N_ORDER_LENGTH);
+    
+    memcpy(&reqHeader[REQUEST_HEADER_LEN-4], &N_ORDER_LENGTH, 4);
     Rio_writen(clientfd, &reqHeader, REQUEST_HEADER_LEN); // Send reqHeader.
-    
-    //while ()
-
-
-    //struct ServerHeader servResponse;
-    //printf("test\n");
-    //if (servResponse.blockCount != servResponse.blockNum) {
-    //}
-
-    //unsigned char header[REQUEST_HEADER_LEN-4]; // Unsigned char-array.
-    //build_header(username, password, salt, header); // Builds the header.
-    //struct ServerHeader servHead;
-
-    //for (servHead.blockCount[] );
-
-
-    // Rio_writen(clientfd, &reqHeader, REQUEST_HEADER_LEN); // Send reqHeader.
-    
-    // //while ()
 }
 
 int main(int argc, char **argv){
@@ -287,13 +253,13 @@ int main(int argc, char **argv){
     // Note that a random salt should be used, but you may find it easier to
     // repeatedly test the same user credentials by using the hard coded value
     // below instead, and commenting out this randomly generating section.
-    // for (int i=0; i<SALT_LEN; i++){
-    //     user_salt[i] = 'a' + (random() % 26);
-    // }
-    // user_salt[SALT_LEN] = '\0';
-    strncpy(user_salt, 
-       "0123456789012345678901234567890123456789012345678901234567890123\0", 
-       SALT_LEN+1);
+    for (int i=0; i<SALT_LEN; i++){
+        user_salt[i] = 'a' + (random() % 26);
+    }
+    user_salt[SALT_LEN] = '\0';
+    // strncpy(user_salt, 
+    //    "0123456789012345678901234567890123456789012345678901234567890123\0", 
+    //    SALT_LEN+1);
 
     fprintf(stdout, "Using salt: %s\n", user_salt);
 
@@ -305,10 +271,10 @@ int main(int argc, char **argv){
     register_user(username, password, user_salt);
 
     // Retrieve the smaller file, that doesn't not require support for blocks
-    get_file(username, password, user_salt, "tiny.txt");
+    get_file("tiny.txt");
 
     // Retrieve the larger file, that requires support for blocked messages
-    get_file(username, password, user_salt, "hamlet.txt");
+    get_file("hamlet.txt");
 
     exit(EXIT_SUCCESS);
 }
