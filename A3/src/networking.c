@@ -156,9 +156,6 @@ void register_user(char* username, char* password, char* salt){
     // Process response from server.
     struct ServerResponse *ServerResponse = malloc(sizeof(struct ServerResponse)); 
     process_server_response(ServerResponse);
-  
-   
-    
 }
 
 /*
