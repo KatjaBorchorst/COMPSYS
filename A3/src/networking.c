@@ -103,24 +103,30 @@ void build_header(char* username, char* password, char* salt, unsigned char *hea
     }
 }
 
-void processServerResponse(struct ServerHeader *serverheader) {
-    unsigned char* response[RESPONSE_HEADER_LEN];
-    Rio_readnb(&rio, &response, RESPONSE_HEADER_LEN);
-    serverheader->responseLen = ntohl(*(uint32_t*)&response[0]); //Convert to host-byte-order.
+void process_server_response(struct ServerResponse *serverResponse) {
+    struct ServerHeader header = serverResponse->header;
 
-    // uint32_t status;
-    // Rio_readnb(&rio, &status, 4);
-    serverheader->status = ntohl(*(uint32_t*)&response[4]); //Convert to host-byte-order.
+    //extract header
+    unsigned char responseHeader[RESPONSE_HEADER_LEN];
+    Rio_readnb(&rio, &responseHeader, RESPONSE_HEADER_LEN);
+    header.responseLen = ntohl(*(uint32_t*)&responseHeader[0]); //Convert to host-byte-order.
+    header.status = ntohl(*(uint32_t*)&responseHeader[4]); 
+    header.blockNum = ntohl(*(uint32_t*)&responseHeader[8]); 
+    header.blockCount = ntohl(*(uint32_t*)&responseHeader[12]);
 
-    // uint32_t blockNum;
-    // Rio_readnb(&rio, &blockNum, 4);
-    serverheader->blockNum = ntohl(*(uint32_t*)&response[8]); //Convert to host-byte-order.
-
-    // uint32_t blockCount;
-    // Rio_readnb(&rio, &blockCount, 4);
-    serverheader->blockCount = ntohl(*(uint32_t*)&response[12]); //Convert to host-byte-order.
-    serverheader->blockCount = be64toh(&response[16]);
-    serverheader->blockCount = be64toh(&response[16+SHA256_HASH_SIZE]);
+    // hashdata_t blockHash;
+    // for (size_t i = 0 ; i < SHA256_HASH_SIZE; i++) {
+    //      Rio_readnb(&rio, &blockHash[i], 1);
+    // }
+    // memcpy(&blockHash, header.blockHash, SHA256_HASH_SIZE);
+    // for (size_t i = 0; i < SHA256_HASH_SIZE; i++) {
+    //    printf("%x", header.blockHash[i]);
+    // } printf("\n");
+  
+    //extract payload
+    char msg[serverResponse->header.responseLen];
+    Rio_readnb(&rio, &msg, serverResponse->header.responseLen);
+    memcpy(&serverResponse->payload, &msg, serverResponse->header.responseLen);
 }
 
 /*
@@ -140,20 +146,18 @@ void register_user(char* username, char* password, char* salt){
     for (size_t i = (REQUEST_HEADER_LEN-4); i < REQUEST_HEADER_LEN; i++) {
         reqHeader[i] = 0;
     }
-    
-    // for (size_t i = 0; i < REQUEST_HEADER_LEN; i++) {
-    //     printf("[%02X]", reqHeader[i]);
-    // }
-
+   
     // Initialise connection and rio.
     clientfd = Open_clientfd(server_ip, server_port); 
     Rio_readinitb(&rio, clientfd);;
 
     Rio_writen(clientfd, &reqHeader, REQUEST_HEADER_LEN); // Send reqHeader.
     
-    struct ServerResponse *ServerResponse = malloc(sizeof(struct ServerResponse)); // Initializes a serverHead.
-    processServerResponse(&ServerResponse->header);
-    printf("msg lengh: %i", ServerResponse->header.responseLen);
+    // Process response from server.
+    struct ServerResponse *ServerResponse = malloc(sizeof(struct ServerResponse)); 
+    process_server_response(ServerResponse);
+  
+   
     
 }
 
@@ -163,12 +167,13 @@ void register_user(char* username, char* password, char* salt){
  * and large files. 
  */
 void get_file(char* username, char* password, char* salt, char* to_get){
-    unsigned char header[REQUEST_HEADER_LEN-4]; // Unsigned char-array.
-    build_header(username, password, salt, header); // Builds the header.
-    struct ServerHeader servHead;
+    // unsigned char header[REQUEST_HEADER_LEN-4]; // Unsigned char-array.
+    // build_header(username, password, salt, header); // Builds the header.
+    // struct ServerHeader servHead;
 
-    //for (servHead.blockCount[] );
+    // //for (servHead.blockCount[] );
 
+    // hton
 
     // hashdata_t hash;
 
