@@ -23,8 +23,8 @@ int c;
 
 rio_t rio;
 int clientfd;
+int registered = 0; //1 if client is registered with server, 0 if not.
 
-unsigned char header[REQUEST_HEADER_LEN-4]; 
 unsigned char reqHeader[REQUEST_HEADER_LEN];
 
 /*
@@ -90,10 +90,6 @@ void build_header(char* username, char* password, char* salt, unsigned char *hea
     hashdata_t signature;
     get_signature(password, salt, &signature);
     memcpy(header, username, USERNAME_LEN);
-    // //padding
-    // for (size_t i = strlen(username); i < USERNAME_LEN; i++) {
-    //     header[i] = 0;
-    // }
     memcpy(&header[USERNAME_LEN], &signature, SHA256_HASH_SIZE);
 }
 
@@ -109,11 +105,12 @@ int compare_hashes (hashdata_t hash1, hashdata_t hash2) {
 }
 
 // Processes the response received from the server. Returns 0 if the block is the last one.
-void process_server_response(struct ServerResponse* serverResponse) {
+int process_server_response(struct ServerResponse* serverResponse) {
     // Extract header.
     unsigned char responseHeader[RESPONSE_HEADER_LEN];
     assert(Rio_readnb(&rio, responseHeader, RESPONSE_HEADER_LEN) != -1);
 
+    // Parse and put elements into their containers.
     serverResponse->header.responseLen = ntohl(*(uint32_t*)&responseHeader[0]); //Convert to host-byte-order.
     serverResponse->header.status = ntohl(*(uint32_t*)&responseHeader[4]); 
     serverResponse->header.blockNum = ntohl(*(uint32_t*)&responseHeader[8]); 
@@ -131,38 +128,21 @@ void process_server_response(struct ServerResponse* serverResponse) {
     if (serverResponse->header.status != 1) {
         printf ("Got unexpected status code: %d - ", serverResponse->header.status);
         printf("%s\n", serverResponse->payload);
+        return 1;
     }
-    
-    // Load whole response.
-    char response[RESPONSE_HEADER_LEN + serverResponse->header.responseLen];
-    memcpy(response, responseHeader, RESPONSE_HEADER_LEN);
-    memcpy(&response[RESPONSE_HEADER_LEN], msg, serverResponse->header.responseLen);
 
     // Check blockhash.
-    // hashdata_t responseHash;
-    // get_data_sha(response, responseHash, strlen(response), SHA256_HASH_SIZE);
-    // for (size_t i = 0; i < SHA256_HASH_SIZE; i++) {
-    //     printf("[%02X]", responseHash[i]);
-    // }printf("\n");
-    //     for (size_t i = 0; i < SHA256_HASH_SIZE; i++) {
-    //     printf("[%02X]", serverResponse->header.blockHash[i]);
-    // }printf("\n");
-    // if (compare_hashes(serverResponse->header.blockHash, responseHash) == 0) {
-    //     printf("Block %d {%d/%d}: checksums for block did not match.\n",
-    //             serverResponse->header.blockNum,serverResponse->header.blockNum+1, serverResponse->header.blockCount);
-    // } else 
-    // if (serverResponse->header.blockNum+1 == serverResponse->header.blockCount) {
-    //     serverResponse->header.blockCount);
-    //     return 0;
-    // } else {
-    //     printf("block: %d (%d/%d)\n", serverResponse->header.blockNum, serverResponse->header.blockNum+1, 
-    //     serverResponse->header.blockCount);
-    //     return 1;
-    // }
-    // }
+    hashdata_t blockHash;
+    get_data_sha(serverResponse->payload, blockHash, serverResponse->header.responseLen,
+        SHA256_HASH_SIZE);
+    if (compare_hashes(serverResponse->header.blockHash, blockHash) == 0) {
+        printf("For block %d {%d/%d} checksum did not match.\n",
+                serverResponse->header.blockNum,serverResponse->header.blockNum+1, serverResponse->header.blockCount);
+        return 1;
+    }
     printf("block: %d (%d/%d)\n", serverResponse->header.blockNum, serverResponse->header.blockNum+1,  
         serverResponse->header.blockCount);
-
+    return 0;
 }
 
 /*
@@ -170,6 +150,7 @@ void process_server_response(struct ServerResponse* serverResponse) {
  * the server
  */
 void register_user(char* username, char* password, char* salt){
+    unsigned char header[REQUEST_HEADER_LEN-4]; 
     build_header(username, password, salt, header);
 
     //concat
@@ -188,8 +169,11 @@ void register_user(char* username, char* password, char* salt){
     
     // Process response from server.
     struct ServerResponse *ServerResponse = malloc(sizeof(struct ServerResponse)); 
-    process_server_response(ServerResponse);    
+    if (process_server_response(ServerResponse) == 1) {
+        exit(0);
+    }    
     
+    registered = 1;
     printf("Got response: %s\n", ServerResponse->payload);
 }
 
@@ -198,13 +182,21 @@ void register_user(char* username, char* password, char* salt){
  * a file path. Note that this function should be able to deal with both small 
  * and large files. 
  */
-void get_file(char* to_get) {
+void get_file(char* username, char* password, char* salt, char* to_get) {
+    // Build header from scratch only if it hasn't been done before.
+    if (registered == 0) {
+        unsigned char header[REQUEST_HEADER_LEN-4]; 
+        build_header(username, password, salt, header);
+        memcpy(&reqHeader, &header, REQUEST_HEADER_LEN-4);
+    }//hashes kun 1 gang men det er ok for password+salt ændres jo ik RAPPORT
+    
     // Initialize connection and rio.
     clientfd = Open_clientfd(server_ip, server_port);
     Rio_readinitb(&rio, clientfd);
 
-    uint32_t REQ_LENGTH = strlen(to_get);           // HUSK AT KOMMENTERE PA SIKKEREHD I RAPPORTEN - HASHER KUN EN GANG.
-    uint32_t N_ORDER_LENGTH = htonl(REQ_LENGTH);
+    // Assemble request.
+    uint32_t REQ_LENGTH = strlen(to_get); 
+    uint32_t N_ORDER_LENGTH = htonl(REQ_LENGTH); // Convert to network-byte-order.
     char reqBody[REQUEST_HEADER_LEN+strlen(to_get)];
     memcpy(reqBody, reqHeader, REQUEST_HEADER_LEN-4);
     memcpy(&reqBody[REQUEST_HEADER_LEN-4], &N_ORDER_LENGTH, 4);  
@@ -215,7 +207,9 @@ void get_file(char* to_get) {
 
     // Process response from server.
     struct ServerResponse *ServerResponse = malloc(sizeof(struct ServerResponse)); 
-    process_server_response(ServerResponse); 
+    if (process_server_response(ServerResponse) == 1) {
+        exit(0); // Stop if status or hash checks fail.
+    }   
     size_t datasize = (MAX_PAYLOAD)*(ServerResponse->header.blockCount);
     char allData [datasize];
 
@@ -223,7 +217,9 @@ void get_file(char* to_get) {
     while (ServerResponse->header.blockNum+1 != ServerResponse->header.blockCount) {
         memcpy(&allData[(MAX_PAYLOAD)*(ServerResponse->header.blockNum)],
                 ServerResponse->payload, ServerResponse->header.responseLen);
-        process_server_response(ServerResponse);
+        if (process_server_response(ServerResponse) == 1) {
+        exit(0); // Stop if status or hash checks fail.
+        } 
     }
     memcpy(&allData[(MAX_PAYLOAD)*(ServerResponse->header.blockNum)],
                 ServerResponse->payload, ServerResponse->header.responseLen);
@@ -238,6 +234,12 @@ void get_file(char* to_get) {
     }
     printf("Retrieved data written to %s\n", to_get);
     fclose(fp);
+
+    hashdata_t fileHash;
+    get_file_sha(to_get, fileHash, SHA256_HASH_SIZE);
+    if (compare_hashes (fileHash, ServerResponse->header.totalHash) == 0) {
+        printf ("Hashes to not match. ");
+    }
 }
 
 int main(int argc, char **argv){
@@ -315,13 +317,13 @@ int main(int argc, char **argv){
     // Note that a random salt should be used, but you may find it easier to
     // repeatedly test the same user credentials by using the hard coded value
     // below instead, and commenting out this randomly generating section.
-    // for (int i=0; i<SALT_LEN; i++){
-    //     user_salt[i] = 'a' + (random() % 26);
-    // }
-    // user_salt[SALT_LEN] = '\0';
-    strncpy(user_salt, 
-       "0123456789012345678901234567890123456789012345678901234567890123\0", 
-       SALT_LEN+1);
+    for (int i=0; i<SALT_LEN; i++){
+        user_salt[i] = 'a' + (random() % 26);
+    }
+    user_salt[SALT_LEN] = '\0';
+    // strncpy(user_salt, 
+    //    "0123456789012345678901234567890123456789012345678901234567890123\0", 
+    //    SALT_LEN+1);
 
     fprintf(stdout, "Using salt: %s\n", user_salt);
 
@@ -329,14 +331,20 @@ int main(int argc, char **argv){
     // potential solution demonstrating the core functionality. Feel free to 
     // add, remove or otherwise edit. 
 
+    
+    //get_file(username, password, user_salt, "tiny.txt"); //TEST #1
+
     // Register the given user
     register_user(username, password, user_salt);
-
+    
     // Retrieve the smaller file, that doesn't not require support for blocks
-    get_file("tiny.txt");
+    get_file(username, password, user_salt, "tiny.txt"); //TEST #2
 
     // Retrieve the larger file, that requires support for blocked messages
-    get_file("hamlet.txt");
+    get_file(username, password, user_salt, "hamlet.txt"); //TEST #3
+
+    // get_file(username, password, user_salt, "does_not_exist.txt"); //TEST #4
+    // get_file(username, password, user_salt, "does_not_exist"); //TEST #4
 
     exit(EXIT_SUCCESS);
 }
