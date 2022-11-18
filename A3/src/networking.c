@@ -85,28 +85,32 @@ void get_signature(char* password, char* salt, hashdata_t* hash){
     get_data_sha(to_hash, *hash, strlen(to_hash), SHA256_HASH_SIZE);
 }
 
-//salts signature and places the username and signature in usigned char array with padding
+// Salts signature and places the username and signature in usigned char array with padding.
 void build_header(char* username, char* password, char* salt, unsigned char *header) {
     hashdata_t signature;
     get_signature(password, salt, &signature);
-
-    //insert username into header
-    for (size_t i = 0; i < strlen(username); i++){
-        header[i] = username[i]; 
-    }
-    //padding
-    for (size_t i = strlen(username); i < USERNAME_LEN; i++) {
-        header[i] = 0;
-    }
-    //insert signature into header
-    for (size_t i = USERNAME_LEN; i < REQUEST_HEADER_LEN-4; i++){
-        header[i] = signature[i-(USERNAME_LEN)];
-    }
+    memcpy(header, username, USERNAME_LEN);
+    // //padding
+    // for (size_t i = strlen(username); i < USERNAME_LEN; i++) {
+    //     header[i] = 0;
+    // }
+    memcpy(&header[USERNAME_LEN], &signature, SHA256_HASH_SIZE);
 }
 
-void process_server_response(struct ServerResponse* serverResponse) {
+int compare_hashes (hashdata_t hash1, hashdata_t hash2) {
+    int same = 1;
+    for (size_t i = 0; i < SHA256_HASH_SIZE; i++) {
+        if (hash1[i] != hash2[i]) {
+            same = 0;
+            return same;
+        }
+    }
+    return same;
+}
 
-    //extract header
+// Processes the response received from the server. Returns 0 if the block is the last one.
+void process_server_response(struct ServerResponse* serverResponse) {
+    // Extract header.
     unsigned char responseHeader[RESPONSE_HEADER_LEN];
     assert(Rio_readnb(&rio, responseHeader, RESPONSE_HEADER_LEN) != -1);
 
@@ -118,12 +122,46 @@ void process_server_response(struct ServerResponse* serverResponse) {
     memcpy(&serverResponse->header.totalHash, (hashdata_t*)&responseHeader[16+SHA256_HASH_SIZE], 
                                                                                 SHA256_HASH_SIZE);
     
-    
-
-    //extract payload
+    // Extract payload.
     char msg[serverResponse->header.responseLen];
     assert(Rio_readnb(&rio, &msg, serverResponse->header.responseLen) != -1);
-    memcpy(&serverResponse->payload, &msg, serverResponse->header.responseLen);
+    memcpy(&serverResponse->payload, msg, serverResponse->header.responseLen);
+
+    // Check status.
+    if (serverResponse->header.status != 1) {
+        printf ("Got unexpected status code: %d - ", serverResponse->header.status);
+        printf("%s\n", serverResponse->payload);
+    }
+    
+    // Load whole response.
+    char response[RESPONSE_HEADER_LEN + serverResponse->header.responseLen];
+    memcpy(response, responseHeader, RESPONSE_HEADER_LEN);
+    memcpy(&response[RESPONSE_HEADER_LEN], msg, serverResponse->header.responseLen);
+
+    // Check blockhash.
+    // hashdata_t responseHash;
+    // get_data_sha(response, responseHash, strlen(response), SHA256_HASH_SIZE);
+    // for (size_t i = 0; i < SHA256_HASH_SIZE; i++) {
+    //     printf("[%02X]", responseHash[i]);
+    // }printf("\n");
+    //     for (size_t i = 0; i < SHA256_HASH_SIZE; i++) {
+    //     printf("[%02X]", serverResponse->header.blockHash[i]);
+    // }printf("\n");
+    // if (compare_hashes(serverResponse->header.blockHash, responseHash) == 0) {
+    //     printf("Block %d {%d/%d}: checksums for block did not match.\n",
+    //             serverResponse->header.blockNum,serverResponse->header.blockNum+1, serverResponse->header.blockCount);
+    // } else 
+    // if (serverResponse->header.blockNum+1 == serverResponse->header.blockCount) {
+    //     serverResponse->header.blockCount);
+    //     return 0;
+    // } else {
+    //     printf("block: %d (%d/%d)\n", serverResponse->header.blockNum, serverResponse->header.blockNum+1, 
+    //     serverResponse->header.blockCount);
+    //     return 1;
+    // }
+    // }
+    printf("block: %d (%d/%d)\n", serverResponse->header.blockNum, serverResponse->header.blockNum+1,  
+        serverResponse->header.blockCount);
 
 }
 
@@ -144,23 +182,15 @@ void register_user(char* username, char* password, char* salt){
    
     // Initialise connection and rio.
     clientfd = Open_clientfd(server_ip, server_port); 
-    Rio_readinitb(&rio, clientfd);;
+    Rio_readinitb(&rio, clientfd);
 
     Rio_writen(clientfd, reqHeader, REQUEST_HEADER_LEN); // Send reqHeader.
     
     // Process response from server.
     struct ServerResponse *ServerResponse = malloc(sizeof(struct ServerResponse)); 
     process_server_response(ServerResponse);    
-
-    for (size_t i = 0; i < SHA256_HASH_SIZE; i++) {
-        printf("%02X", ServerResponse->header.blockHash[i]);
-    }printf("\n");
-    for (size_t i = 0; i < SHA256_HASH_SIZE; i++) {
-        printf("%02X", ServerResponse->header.totalHash[i]);
-    }printf("\n");
-    printf("%s\n", ServerResponse->payload);
-    printf("status: %d\n", ServerResponse->header.status);
-    printf("length: %d\n", ServerResponse->header.responseLen);
+    
+    printf("Got response: %s\n", ServerResponse->payload);
 }
 
 /*
@@ -168,14 +198,46 @@ void register_user(char* username, char* password, char* salt){
  * a file path. Note that this function should be able to deal with both small 
  * and large files. 
  */
-void get_file(char* to_get){
-    uint32_t REQ_LENGTH = sizeof(to_get);           // HUSK AT KOMMENTERE PÅ SIKKEREHD I RAPPORTEN - HASHER KUN ÉN GANG.
+void get_file(char* to_get) {
+    // Initialize connection and rio.
+    clientfd = Open_clientfd(server_ip, server_port);
+    Rio_readinitb(&rio, clientfd);
+
+    uint32_t REQ_LENGTH = strlen(to_get);           // HUSK AT KOMMENTERE PA SIKKEREHD I RAPPORTEN - HASHER KUN EN GANG.
     uint32_t N_ORDER_LENGTH = htonl(REQ_LENGTH);
-    printf("req: %d\n", REQ_LENGTH);
-    printf("n_order: %d\n", N_ORDER_LENGTH);
+    char reqBody[REQUEST_HEADER_LEN+strlen(to_get)];
+    memcpy(reqBody, reqHeader, REQUEST_HEADER_LEN-4);
+    memcpy(&reqBody[REQUEST_HEADER_LEN-4], &N_ORDER_LENGTH, 4);  
+    memcpy(&reqBody[REQUEST_HEADER_LEN], to_get, strlen(to_get));
     
-    memcpy(&reqHeader[REQUEST_HEADER_LEN-4], &N_ORDER_LENGTH, 4);
-    Rio_writen(clientfd, &reqHeader, REQUEST_HEADER_LEN); // Send reqHeader.
+    // Send request.
+    Rio_writen(clientfd, reqBody, REQUEST_HEADER_LEN+strlen(to_get)); 
+
+    // Process response from server.
+    struct ServerResponse *ServerResponse = malloc(sizeof(struct ServerResponse)); 
+    process_server_response(ServerResponse); 
+    size_t datasize = (MAX_PAYLOAD)*(ServerResponse->header.blockCount);
+    char allData [datasize];
+
+    // Loop if the block extracted is not the last/only one.
+    while (ServerResponse->header.blockNum+1 != ServerResponse->header.blockCount) {
+        memcpy(&allData[(MAX_PAYLOAD)*(ServerResponse->header.blockNum)],
+                ServerResponse->payload, ServerResponse->header.responseLen);
+        process_server_response(ServerResponse);
+    }
+    memcpy(&allData[(MAX_PAYLOAD)*(ServerResponse->header.blockNum)],
+                ServerResponse->payload, ServerResponse->header.responseLen);
+    // Update now that we know the actual size of the last block's payload.
+    datasize = datasize - ((MAX_PAYLOAD)-(ServerResponse->header.responseLen));
+
+    // Create file and write data into file.
+    FILE *fp;
+    fp = fopen(to_get, "w");
+    for (size_t i = 0; i < datasize; i++){
+        fputc(allData[i], fp);
+    }
+    printf("Retrieved data written to %s\n", to_get);
+    fclose(fp);
 }
 
 int main(int argc, char **argv){
@@ -253,13 +315,13 @@ int main(int argc, char **argv){
     // Note that a random salt should be used, but you may find it easier to
     // repeatedly test the same user credentials by using the hard coded value
     // below instead, and commenting out this randomly generating section.
-    for (int i=0; i<SALT_LEN; i++){
-        user_salt[i] = 'a' + (random() % 26);
-    }
-    user_salt[SALT_LEN] = '\0';
-    // strncpy(user_salt, 
-    //    "0123456789012345678901234567890123456789012345678901234567890123\0", 
-    //    SALT_LEN+1);
+    // for (int i=0; i<SALT_LEN; i++){
+    //     user_salt[i] = 'a' + (random() % 26);
+    // }
+    // user_salt[SALT_LEN] = '\0';
+    strncpy(user_salt, 
+       "0123456789012345678901234567890123456789012345678901234567890123\0", 
+       SALT_LEN+1);
 
     fprintf(stdout, "Using salt: %s\n", user_salt);
 
