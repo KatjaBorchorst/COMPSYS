@@ -27,12 +27,10 @@ int registered = 0; //1 if client is registered with server, 0 if not.
 
 unsigned char reqHeader[REQUEST_HEADER_LEN];
 
-/*
- * Gets a sha256 hash of specified data, sourcedata. The hash itself is
- * placed into the given variable 'hash'. Any size can be created, but a
- * a normal size for the hash would be given by the global variable
- * 'SHA256_HASH_SIZE', that has been defined in sha256.h
- */
+// Gets a sha256 hash of specified data, sourcedata. The hash itself is
+// placed into the given variable 'hash'. Any size can be created, but a
+// a normal size for the hash would be given by the global variable
+// 'SHA256_HASH_SIZE', that has been defined in sha256.h
 void get_data_sha(const char* sourcedata, hashdata_t hash, uint32_t data_size, 
     int hash_size){
   SHA256_CTX shactx;
@@ -46,12 +44,10 @@ void get_data_sha(const char* sourcedata, hashdata_t hash, uint32_t data_size,
   }
 }
 
-/*
- * Gets a sha256 hash of specified data file, sourcefile. The hash itself is
- * placed into the given variable 'hash'. Any size can be created, but a
- * a normal size for the hash would be given by the global variable
- * 'SHA256_HASH_SIZE', that has been defined in sha256.h
- */
+// Gets a sha256 hash of specified data file, sourcefile. The hash itself is
+//placed into the given variable 'hash'. Any size can be created, but a
+//a normal size for the hash would be given by the global variable
+//'SHA256_HASH_SIZE', that has been defined in sha256.h
 void get_file_sha(const char* sourcefile, hashdata_t hash, int size){
     int casc_file_size;
 
@@ -73,12 +69,11 @@ void get_file_sha(const char* sourcefile, hashdata_t hash, int size){
     get_data_sha(buffer, hash, casc_file_size, size);
 }
 
-/*
- * Combine a password and salt together and hash the result to form the 
- * 'signature'. The result should be written to the 'hash' variable. Note that 
- * as handed out, this function is never called. You will need to decide where 
- * it is sensible to do so.
- */
+
+//  Combine a password and salt together and hash the result to form the 
+//  'signature'. The result should be written to the 'hash' variable. Note that 
+//  as handed out, this function is never called. You will need to decide where 
+//  it is sensible to do so.
 void get_signature(char* password, char* salt, hashdata_t* hash){
     char to_hash[strlen(password) + strlen(salt)];
     strcpy(to_hash, strcat(password, salt));
@@ -93,6 +88,7 @@ void build_header(char* username, char* password, char* salt, unsigned char *hea
     memcpy(&header[USERNAME_LEN], &signature, SHA256_HASH_SIZE);
 }
 
+// A function for comparing two hashes byte by byte.
 int compare_hashes (hashdata_t hash1, hashdata_t hash2) {
     int same = 1;
     for (size_t i = 0; i < SHA256_HASH_SIZE; i++) {
@@ -104,7 +100,8 @@ int compare_hashes (hashdata_t hash1, hashdata_t hash2) {
     return same;
 }
 
-// Processes the response received from the server. Returns 0 if the block is the last one.
+// Processes the response received from the server. Returns 1 if status is not 1 or if blockhash 
+//doesn't match, 0 otherwise.
 int process_server_response(struct ServerResponse* serverResponse) {
     // Extract header.
     unsigned char responseHeader[RESPONSE_HEADER_LEN];
@@ -145,10 +142,8 @@ int process_server_response(struct ServerResponse* serverResponse) {
     return 0;
 }
 
-/*
- * Register a new user with a server by sending the username and signature to 
- * the server
- */
+// Register a new user with a server by sending the username and signature to 
+// the server.
 void register_user(char* username, char* password, char* salt){
     unsigned char header[REQUEST_HEADER_LEN-4]; 
     build_header(username, password, salt, header);
@@ -157,9 +152,8 @@ void register_user(char* username, char* password, char* salt){
     memcpy(&reqHeader, &header, REQUEST_HEADER_LEN-4);
 
     //insert 0's in last 4 bytes
-    for (size_t i = (REQUEST_HEADER_LEN-4); i < REQUEST_HEADER_LEN; i++) {
-        reqHeader[i] = 0;
-    }
+    uint32_t empty;
+    memcpy(&reqHeader[REQUEST_HEADER_LEN-4], &empty, 4);
    
     // Initialise connection and rio.
     clientfd = Open_clientfd(server_ip, server_port); 
@@ -188,7 +182,7 @@ void get_file(char* username, char* password, char* salt, char* to_get) {
         unsigned char header[REQUEST_HEADER_LEN-4]; 
         build_header(username, password, salt, header);
         memcpy(&reqHeader, &header, REQUEST_HEADER_LEN-4);
-    }//hashes kun 1 gang men det er ok for password+salt ændres jo ik RAPPORT
+    }
     
     // Initialize connection and rio.
     clientfd = Open_clientfd(server_ip, server_port);

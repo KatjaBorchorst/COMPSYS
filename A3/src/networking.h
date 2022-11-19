@@ -25,7 +25,7 @@ typedef struct Request {
     char payload[PATH_LEN];
 } Request_t;
 
-// container for server headers
+// Container for parts of the servers response headers.
 typedef struct ServerHeader {
     uint32_t responseLen;
     uint32_t status;
@@ -35,7 +35,7 @@ typedef struct ServerHeader {
     hashdata_t totalHash;
 } ServerHeader_t;
 
-// container for deassemling server response messages
+// Container for parts of the servers response.
 typedef struct ServerResponse {
     struct ServerHeader header;
     char payload[MAX_PAYLOAD];
