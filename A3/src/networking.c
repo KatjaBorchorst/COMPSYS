@@ -76,7 +76,8 @@ void get_file_sha(const char* sourcefile, hashdata_t hash, int size){
 //  it is sensible to do so.
 void get_signature(char* password, char* salt, hashdata_t* hash){
     char to_hash[strlen(password) + strlen(salt)];
-    strcpy(to_hash, strcat(password, salt));
+    memcpy(to_hash, password, PASSWORD_LEN);
+    memcpy(&to_hash[PASSWORD_LEN], salt, SALT_LEN);
     get_data_sha(to_hash, *hash, strlen(to_hash), SHA256_HASH_SIZE);
 }
 
@@ -164,18 +165,17 @@ void register_user(char* username, char* password, char* salt){
     // Process response from server.
     struct ServerResponse *ServerResponse = malloc(sizeof(struct ServerResponse)); 
     if (process_server_response(ServerResponse) == 1) {
-        exit(0);
+        exit(EXIT_FAILURE); // Stop if status or hash checks fail.
     }    
     
     registered = 1;
     printf("Got response: %s\n", ServerResponse->payload);
+    free(ServerResponse);
 }
 
-/*
- * Get a file from the server by sending the username and signature, along with
- * a file path. Note that this function should be able to deal with both small 
- * and large files. 
- */
+// Get a file from the server by sending the username and signature, along with
+// file path. Note that this function should be able to deal with both small 
+// and large files. 
 void get_file(char* username, char* password, char* salt, char* to_get) {
     // Build header from scratch only if it hasn't been done before.
     if (registered == 0) {
@@ -202,7 +202,7 @@ void get_file(char* username, char* password, char* salt, char* to_get) {
     // Process response from server.
     struct ServerResponse *ServerResponse = malloc(sizeof(struct ServerResponse)); 
     if (process_server_response(ServerResponse) == 1) {
-        exit(0); // Stop if status or hash checks fail.
+        exit(EXIT_FAILURE); // Stop if status or hash checks fail.
     }   
     size_t datasize = (MAX_PAYLOAD)*(ServerResponse->header.blockCount);
     char allData [datasize];
@@ -212,13 +212,14 @@ void get_file(char* username, char* password, char* salt, char* to_get) {
         memcpy(&allData[(MAX_PAYLOAD)*(ServerResponse->header.blockNum)],
                 ServerResponse->payload, ServerResponse->header.responseLen);
         if (process_server_response(ServerResponse) == 1) {
-        exit(0); // Stop if status or hash checks fail.
+            exit(EXIT_FAILURE); // Stop if status or hash checks fail.
         } 
     }
     memcpy(&allData[(MAX_PAYLOAD)*(ServerResponse->header.blockNum)],
                 ServerResponse->payload, ServerResponse->header.responseLen);
     // Update now that we know the actual size of the last block's payload.
     datasize = datasize - ((MAX_PAYLOAD)-(ServerResponse->header.responseLen));
+    free(ServerResponse);
 
     // Create file and write data into file.
     FILE *fp;
@@ -325,8 +326,7 @@ int main(int argc, char **argv){
     // potential solution demonstrating the core functionality. Feel free to 
     // add, remove or otherwise edit. 
 
-    
-    //get_file(username, password, user_salt, "tiny.txt"); //TEST #1
+    // get_file(username, password, user_salt, "tiny.txt"); //TEST #1
 
     // Register the given user
     register_user(username, password, user_salt);
@@ -337,8 +337,12 @@ int main(int argc, char **argv){
     // Retrieve the larger file, that requires support for blocked messages
     get_file(username, password, user_salt, "hamlet.txt"); //TEST #3
 
-    // get_file(username, password, user_salt, "does_not_exist.txt"); //TEST #4
-    // get_file(username, password, user_salt, "does_not_exist"); //TEST #4
+    // get_file(username, password, user_salt, "many_hamlets.txt"); //TEST #4
+    // get_file(username, password, user_salt, "server.py"); //TEST #5
+
+
+    // get_file(username, password, user_salt, "does_not_exist.txt"); //TEST #6
+    // get_file(username, password, user_salt, "does_not_exist"); //TEST #7
 
     exit(EXIT_SUCCESS);
 }
