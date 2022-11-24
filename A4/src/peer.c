@@ -327,6 +327,13 @@ void send_message(PeerAddress_t peer_address, int command, char* request_body)
     {
         if (command == COMMAND_REGISTER)
         {
+            
+            for (uint32_t i = 0; i <= peer_count; i++) {
+                uint32_t ipAdress = ntohl(*(uint32_t*)&reply_header[0]);
+                uint32_t peerPort = ntohl(*(uint32_t*)&reply_header[IP_LEN]);
+            }
+            memcpy(*network, reply_body, )
+            printf("The amount of peers in the network is now: %i\n", network) // Informs the joining-peer about the other peers in the network.
             // Your code here. This code has been added as a guide, but feel 
             // free to add more, or work in other parts of the code
         }
@@ -378,6 +385,17 @@ void* client_thread(void* thread_args)
  */
 void handle_register(int connfd, char* client_ip, int client_port_int)
 {
+    // Construct a request message and send it to the peer
+    struct RequestHeader request_header;
+    strncpy(request_header.ip, my_address->ip, IP_LEN);
+    request_header.port = htonl(atoi(my_address->port));
+    request_header.command = htonl(command);
+    request_header.length = htonl(strlen(request_body));
+
+    memcpy(msg_buf, &request_header, REQUEST_HEADER_LEN);
+    memcpy(msg_buf+REQUEST_HEADER_LEN, request_body, strlen(request_body));
+
+    Rio_writen(peer_socket, msg_buf, REQUEST_HEADER_LEN+strlen(request_body));
     // Your code here. This function has been added as a guide, but feel free 
     // to add more, or work in other parts of the code
 }
