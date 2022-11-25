@@ -128,8 +128,7 @@ void get_random_peer(PeerAddress_t* peer_address)
  * specifically an 'inform' message as described in the assignment handout, a 
  * reply will always be expected.
  */
-void send_message(PeerAddress_t peer_address, int command, char* request_body)
-{
+void send_message(PeerAddress_t peer_address, int command, char* request_body) {
     fprintf(stdout, "Connecting to server at %s:%s to run command %d (%s)\n", 
         peer_address.ip, peer_address.port, command, request_body);
 
@@ -323,16 +322,22 @@ void send_message(PeerAddress_t peer_address, int command, char* request_body)
     memset(reply_body, 0, reply_length + 1);
     memcpy(reply_body, msg_buf, reply_length);
 
-    if (reply_status == STATUS_OK)
-    {
-        if (command == COMMAND_REGISTER)
-        {
-            // Your code here. This code has been added as a guide, but feel 
-            // free to add more, or work in other parts of the code
+    if (reply_status == STATUS_OK) {
+        if (command == COMMAND_REGISTER) {
+            assert(pthread_mutex_lock(&network_mutex) == 0);
+            peer_count = sizeof(reply_body)/20 + 1; //20 bytes per peer + peer itself
+            PeerAddress_t peers[peer_count];
+            for (uint32_t i = 0; i < peer_count - 1; i++) {
+                memcpy(peers[i].ip, &reply_body[i*20], IP_LEN);
+                uint32_t peerPort = ntohl(*(uint32_t*)reply_body[IP_LEN + i*20]);
+                memcpy(peers[i].port, &peerPort, PORT_LEN);
+            }
+            peers[peer_count - 1] = *my_address;
+            memcpy(*network, peers, sizeof(peers));
+            assert(pthread_mutex_unlock(&network_mutex) == 0);
+            printf("Network has been updated");
         }
-    } 
-    else
-    {
+    } else {
         printf("Got response code: %d, %s\n", reply_status, reply_body);
     }
     Free(reply_body);
@@ -376,8 +381,7 @@ void* client_thread(void* thread_args)
  * Handle any 'register' type requests, as defined in the asignment text. This
  * should always generate a response.
  */
-void handle_register(int connfd, char* client_ip, int client_port_int)
-{
+void handle_register(int connfd, char* client_ip, int client_port_int) {
     // Your code here. This function has been added as a guide, but feel free 
     // to add more, or work in other parts of the code
 }
@@ -386,18 +390,29 @@ void handle_register(int connfd, char* client_ip, int client_port_int)
  * Handle 'inform' type message as defined by the assignment text. These will 
  * never generate a response, even in the case of errors.
  */
-void handle_inform(char* request)
-{
-    // Your code here. This function has been added as a guide, but feel free 
-    // to add more, or work in other parts of the code
+void handle_inform(char* request) {
+    rio_t Rio;
+    assert(pthread_mutex_lock(&network_mutex) == 0);
+    for (uint32_t i = 0; i < peer_count; i++) {
+        char msg[REQUEST_HEADER_LEN+20];
+        RequestHeader_t request_header;
+        strncpy(request_header.ip, my_address->ip, IP_LEN);
+        request_header.port = htonl(atoi(my_address->port));
+        request_header.command = htonl(COMMAND_INFORM);
+        request_header.length = htonl(20);
+        memcpy(&msg, &request_header, REQUEST_HEADER_LEN);
+        memcpy(&msg, request, 20);
+        int peer_socket = Open_clientfd(network[i]->ip, network[i]->port);
+        Rio_writen(peer_socket, msg, REQUEST_HEADER_LEN+20);
+    }
+    assert(pthread_mutex_ulock(&network_mutex) == 0);
 }
 
 /*
  * Handle 'retrieve' type messages as defined by the assignment text. This will
  * always generate a response
  */
-void handle_retreive(int connfd, char* request)
-{
+void handle_retreive(int connfd, char* request) {
     // Your code here. This function has been added as a guide, but feel free 
     // to add more, or work in other parts of the code
 }
@@ -406,8 +421,7 @@ void handle_retreive(int connfd, char* request)
  * Handler for all server requests. This will call the relevent function based 
  * on the parsed command code
  */
-void handle_server_request(int connfd)
-{
+void handle_server_request(int connfd) {
     // Your code here. This function has been added as a guide, but feel free 
     // to add more, or work in other parts of the code
 }
@@ -416,15 +430,13 @@ void handle_server_request(int connfd)
  * Function to act as basis for running the server thread. This thread will be
  * run concurrently with the client thread, but is infinite in nature.
  */
-void* server_thread()
-{
+void* server_thread(){
     // Your code here. This function has been added as a guide, but feel free 
     // to add more, or work in other parts of the code
 }
 
 
-int main(int argc, char **argv)
-{
+int main(int argc, char **argv) {
     // Initialise with known junk values, so we can test if these were actually
     // present in the config or not
     struct PeerAddress peer_address;
