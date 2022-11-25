@@ -381,7 +381,19 @@ void* client_thread(void* thread_args)
  * Handle any 'register' type requests, as defined in the asignment text. This
  * should always generate a response.
  */
-void handle_register(int connfd, char* client_ip, int client_port_int) {
+void handle_register(int connfd, char* client_ip, int client_port_int)
+{
+    // Construct a request message and send it to the peer
+    struct RequestHeader request_header;
+    strncpy(request_header.ip, my_address->ip, IP_LEN);
+    request_header.port = htonl(atoi(my_address->port));
+    request_header.command = htonl(command);
+    request_header.length = htonl(strlen(request_body));
+
+    memcpy(msg_buf, &request_header, REQUEST_HEADER_LEN);
+    memcpy(msg_buf+REQUEST_HEADER_LEN, request_body, strlen(request_body));
+
+    Rio_writen(peer_socket, msg_buf, REQUEST_HEADER_LEN+strlen(request_body));
     // Your code here. This function has been added as a guide, but feel free 
     // to add more, or work in other parts of the code
 }
