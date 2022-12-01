@@ -329,7 +329,7 @@ void send_message(PeerAddress_t peer_address, int command, char* request_body) {
             PeerAddress_t peers[peer_count];
             for (uint32_t i = 0; i < peer_count - 1; i++) {
                 memcpy(peers[i].ip, &reply_body[i*20], IP_LEN);
-                uint32_t peerPort = ntohl(*(uint32_t*)reply_body[IP_LEN + i*20]);
+                uint32_t peerPort = ntohl(*(uint32_t*)&reply_body[IP_LEN + i*20]);
                 memcpy(peers[i].port, &peerPort, PORT_LEN);
             }
             peers[peer_count - 1] = *my_address;
@@ -355,8 +355,7 @@ void send_message(PeerAddress_t peer_address, int command, char* request_body) {
  * preferred, this is merely presented as a convienient setup for meeting the 
  * assignment tasks
  */ 
-void* client_thread(void* thread_args)
-{
+void* client_thread(void* thread_args) {
     struct PeerAddress *peer_address = thread_args;
 
     // Register the given user
@@ -377,47 +376,98 @@ void* client_thread(void* thread_args)
     return NULL;
 }
 
+// Sends block with to peer given block count and nu,ber, as well as the status and message to send.
+void send_block(int connfd, int status, char* to_send, hashdata_t total_hash, 
+uint32_t block_count, uint32_t block_number) {
+    rio_t rio;
+    char msg[MAX_MSG_LEN];
+    Rio_readinitb(&rio, connfd);
+    
+    // Build reply.
+    struct ReplyHeader reply_header;
+
+    // Hash block.
+    hashdata_t checksum;
+    get_data_sha(to_send, checksum, (uint32_t)strlen(to_send), SHA256_HASH_SIZE);
+    
+    reply_header.length = htonl((uint32_t)strlen(to_send));
+    reply_header.status = htonl((uint32_t)status);
+    reply_header.block_count = htonl((uint32_t)block_count);
+    reply_header.this_block = htonl((uint32_t)block_number);
+    memcpy(reply_header.block_hash, &checksum, SHA256_HASH_SIZE);
+    memcpy(reply_header.total_hash, &total_hash, SHA256_HASH_SIZE);
+
+    // Copy into byte array.
+    memcpy(msg, &reply_header, REPLY_HEADER_LEN);
+    memcpy(&msg[REPLY_HEADER_LEN], to_send, reply_header.length);
+
+    // Send message.
+    Rio_writen(connfd, msg, REQUEST_HEADER_LEN + reply_header.length);
+}
+
+// Handles error messages and prints to screen.
+void handle_error(int connfd, int status, char* error_msg) {
+    printf("Error: %s\n", error_msg);
+    hashdata_t error_hash;
+    get_data_sha(error_msg, error_hash, strlen(error_msg), SHA256_HASH_SIZE);
+    send_block(connfd, status, error_msg, error_hash, 1, 1);
+}
+
+// Adds peer to network;
+void add_to_network(PeerAddress_t peer_address) {
+    assert(pthread_mutex_lock(&network_mutex) == 0);
+    network[peer_count] = &peer_address;
+    peer_count++;
+    assert(pthread_mutex_unlock(&network_mutex) == 0);
+}
+
 /*
  * Handle any 'register' type requests, as defined in the asignment text. This
  * should always generate a response.
  */
-void handle_register(int connfd, char* client_ip, int client_port_int)
-{
-    // Construct a request message and send it to the peer
-    struct RequestHeader request_header;
-    strncpy(request_header.ip, my_address->ip, IP_LEN);
-    request_header.port = htonl(atoi(my_address->port));
-    request_header.command = htonl(command);
-    request_header.length = htonl(strlen(request_body));
+void handle_register(PeerAddress_t peer_address, int connfd) {
+    assert(pthread_mutex_lock(&network_mutex) == 0);
 
-    memcpy(msg_buf, &request_header, REQUEST_HEADER_LEN);
-    memcpy(msg_buf+REQUEST_HEADER_LEN, request_body, strlen(request_body));
+    // Check if peer is already registered.
+    for (uint32_t i = 0; i < peer_count - 1; i++) {
+        if (network[i]->ip == peer_address.ip) {
+            handle_error(connfd, STATUS_PEER_EXISTS, "Peer is already registered.");
+            return;
+        }
+    }
 
-    Rio_writen(peer_socket, msg_buf, REQUEST_HEADER_LEN+strlen(request_body));
-    // Your code here. This function has been added as a guide, but feel free 
-    // to add more, or work in other parts of the code
+    // Construct reply.
+    char all_peers[peer_count*20];
+    memcpy(*network, all_peers, peer_count*20);
+    hashdata_t peers_hashed;
+    get_data_sha(all_peers, peers_hashed, sizeof(all_peers), SHA256_HASH_SIZE);
+    send_block(connfd, STATUS_OK, all_peers, peers_hashed, 1, 1);
+    
+    add_to_network(peer_address);
+    printf("Registered new peer: %s\n", peer_address.ip);
+    assert(pthread_mutex_unlock(&network_mutex) == 0);
+
+    char broadcast_message[20];
+    memcpy(broadcast_message, peer_address.ip, IP_LEN);
+    memcpy(&broadcast_message[IP_LEN], peer_address.port, PORT_LEN);
+    
+    assert(pthread_mutex_lock(&network_mutex) == 0);
+    // Send inform message to all peers in network.
+    for (uint32_t i = 0; i < peer_count; i++) {
+        send_message(*network[i], COMMAND_INFORM, broadcast_message); 
+    }
+    assert(pthread_mutex_unlock(&network_mutex) == 0);
 }
 
 /*
  * Handle 'inform' type message as defined by the assignment text. These will 
  * never generate a response, even in the case of errors.
  */
-void handle_inform(char* request) {
-    rio_t Rio;
-    assert(pthread_mutex_lock(&network_mutex) == 0);
-    for (uint32_t i = 0; i < peer_count; i++) {
-        char msg[REQUEST_HEADER_LEN+20];
-        RequestHeader_t request_header;
-        strncpy(request_header.ip, my_address->ip, IP_LEN);
-        request_header.port = htonl(atoi(my_address->port));
-        request_header.command = htonl(COMMAND_INFORM);
-        request_header.length = htonl(20);
-        memcpy(&msg, &request_header, REQUEST_HEADER_LEN);
-        memcpy(&msg, request, 20);
-        int peer_socket = Open_clientfd(network[i]->ip, network[i]->port);
-        Rio_writen(peer_socket, msg, REQUEST_HEADER_LEN+20);
-    }
-    assert(pthread_mutex_ulock(&network_mutex) == 0);
+void handle_inform(char* payload) {
+    struct PeerAddress new_peer;
+    memcpy(new_peer.ip, payload, IP_LEN);
+    memcpy(new_peer.port, &payload[IP_LEN], PORT_LEN);
+    add_to_network(new_peer);
 }
 
 /*
@@ -434,8 +484,54 @@ void handle_retreive(int connfd, char* request) {
  * on the parsed command code
  */
 void handle_server_request(int connfd) {
-    // Your code here. This function has been added as a guide, but feel free 
-    // to add more, or work in other parts of the code
+    // Read message.
+    char msg_buf[MAX_MSG_LEN];
+    rio_t rio;
+    Rio_readinitb(&rio, connfd);
+    Rio_readnb(&rio, msg_buf, REQUEST_HEADER_LEN);
+
+    // Extract the request header. 
+    char request_header[REQUEST_HEADER_LEN];
+    memcpy(request_header, msg_buf, REQUEST_HEADER_LEN);
+
+    struct PeerAddress peer_address;
+    memcpy(peer_address.ip, request_header, IP_LEN);
+    memcpy(peer_address.port, &request_header[IP_LEN], PORT_LEN);
+    uint32_t command = ntohl(*(uint32_t*)&request_header[IP_LEN+PORT_LEN]);
+    uint32_t payload_length = ntohl(*(uint32_t*)&request_header[REQUEST_HEADER_LEN-4]);
+    
+    // Extract payload.
+    char payload[payload_length];
+    Rio_readnb(&rio, payload, payload_length);
+    
+    //can't check length because of rio...??
+
+    if (command == COMMAND_REGISTER) {
+        if (is_valid_ip(peer_address.ip) == 0) {
+            handle_error(connfd, STATUS_BAD_REQUEST, "Cannot register empty username.");
+            return;
+        } else if (is_valid_port (peer_address.port) == 0) {
+            handle_error(connfd, STATUS_BAD_REQUEST, "Cannot register empty port.");
+            return;
+        } else if (payload_length != 0) {
+            handle_error(connfd, STATUS_MALFORMED, "Payload is not as expected for command 'register'.");
+            return;
+        }
+        printf("Got registration command from %s:%s", peer_address.ip, peer_address.port);
+        handle_register(peer_address, connfd);
+    } else if (command == COMMAND_INFORM) {
+        if (payload_length == 20) {
+            handle_error(connfd, STATUS_MALFORMED, "Payload is not as expected for command 'inform'.");
+        }
+        printf("Got inform command from %s:%s", peer_address.ip, peer_address.port);
+        handle_inform(payload);
+    } else if (command == COMMAND_RETREIVE) {
+        printf("Got retreive command from %s:%s", peer_address.ip, peer_address.port);
+        handle_retreive(connfd, payload);
+    } else { //wrong command
+        handle_error(connfd, STATUS_MALFORMED, "Not a valid command");
+        return;
+    }
 }
 
 /*
@@ -443,8 +539,10 @@ void handle_server_request(int connfd) {
  * run concurrently with the client thread, but is infinite in nature.
  */
 void* server_thread(){
-    // Your code here. This function has been added as a guide, but feel free 
-    // to add more, or work in other parts of the code
+    while(1) {
+
+    }
+    return NULL;
 }
 
 
