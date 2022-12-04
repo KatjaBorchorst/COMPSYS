@@ -111,6 +111,12 @@ void get_random_peer(PeerAddress_t* peer_address)
         }
     }
 
+    if (potential_count == 0)
+    {
+        printf("No peers to connect to. You probably have not implemented "
+            "registering with the network yet.\n");
+    }
+
     uint32_t random_peer_index = rand() % potential_count;
 
     memcpy(peer_address->ip, potential_peers[random_peer_index]->ip, IP_LEN);
@@ -319,13 +325,15 @@ void send_message(PeerAddress_t peer_address, int command, char* request_body) {
     // If we are registering with the network we should note the complete 
     // network reply
     char* reply_body = Malloc(reply_length + 1);
-    memset(reply_body, 0, reply_length + 1);
+    //memset(reply_body, 0, reply_length + 1);
     memcpy(reply_body, msg_buf, reply_length);
 
     if (reply_status == STATUS_OK) {
         if (command == COMMAND_REGISTER) {
             assert(pthread_mutex_lock(&network_mutex) == 0);
-            peer_count = sizeof(reply_body)/20 + 1; //20 bytes per peer + peer itself
+            peer_count = (strlen(reply_body)/20); //20 bytes per peer + peer itself
+            printf("reply_ %s\n", reply_body);
+            printf("peer count: %i\n", peer_count);
             PeerAddress_t peers[peer_count];
             for (uint32_t i = 0; i < peer_count - 1; i++) {
                 memcpy(peers[i].ip, &reply_body[i*20], IP_LEN);
@@ -335,7 +343,7 @@ void send_message(PeerAddress_t peer_address, int command, char* request_body) {
             peers[peer_count - 1] = *my_address;
             memcpy(*network, peers, sizeof(peers));
             assert(pthread_mutex_unlock(&network_mutex) == 0);
-            printf("Network has been updated");
+            printf("Network has been updated\n");
         }
     } else {
         printf("Got response code: %d, %s\n", reply_status, reply_body);
@@ -357,7 +365,7 @@ void send_message(PeerAddress_t peer_address, int command, char* request_body) {
  */ 
 void* client_thread(void* thread_args) {
     struct PeerAddress *peer_address = thread_args;
-
+    printf("test\n");
     // Register the given user
     send_message(*peer_address, COMMAND_REGISTER, "\0");
 
@@ -609,6 +617,15 @@ int main(int argc, char **argv) {
     network[0] = my_address;
     peer_count = 1;
 
+    char peer_ip[IP_LEN] = "127.0.0.1";
+    char peer_port[PORT_LEN] = "12345";
+    char my_ip[IP_LEN] = "127.0.0.1";
+    char my_port[PORT_LEN] = "34567";
+    memcpy(peer_address.ip, &peer_ip, IP_LEN);
+    memcpy(my_address->ip, &my_ip, IP_LEN);
+    memcpy(peer_address.port, &peer_port, PORT_LEN);
+    memcpy(my_address->port, &my_port, PORT_LEN);
+   
     // Setup the client and server threads 
     pthread_t client_thread_id;
     pthread_t server_thread_id;
@@ -617,7 +634,6 @@ int main(int argc, char **argv) {
         pthread_create(&client_thread_id, NULL, client_thread, &peer_address);
     } 
     pthread_create(&server_thread_id, NULL, server_thread, NULL);
-
     // Start the threads. Note that the client is only started if a peer is 
     // provided in the config. If none is we will assume this peer is the first
     // on the network and so cannot act as a client.
