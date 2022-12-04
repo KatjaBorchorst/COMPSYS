@@ -325,14 +325,14 @@ void send_message(PeerAddress_t peer_address, int command, char* request_body) {
     // If we are registering with the network we should note the complete 
     // network reply
     char* reply_body = Malloc(reply_length + 1);
-    //memset(reply_body, 0, reply_length + 1);
+    memset(reply_body, 0, reply_length + 1);
     memcpy(reply_body, msg_buf, reply_length);
 
     if (reply_status == STATUS_OK) {
         if (command == COMMAND_REGISTER) {
             assert(pthread_mutex_lock(&network_mutex) == 0);
-            peer_count = (strlen(reply_body)/20); //20 bytes per peer + peer itself
-            printf("reply_ %s\n", reply_body);
+            peer_count = (strlen(reply_body)/20)+1; //20 bytes per peer + peer itself
+            printf("reply_body: %s\n", reply_body);
             printf("peer count: %i\n", peer_count);
             PeerAddress_t peers[peer_count];
             for (uint32_t i = 0; i < peer_count - 1; i++) {
