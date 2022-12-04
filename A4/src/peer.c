@@ -563,52 +563,52 @@ int main(int argc, char **argv) {
 
     // Users should call this script with a single argument describing what 
     // config to use
-    if (argc != 2)
-    {
-        fprintf(stderr, "Usage: %s <config file>\n", argv[0]);
-        exit(EXIT_FAILURE);
-    } 
+    // if (argc != 2)
+    // {
+    //     fprintf(stderr, "Usage: %s <config file>\n", argv[0]);
+    //     exit(EXIT_FAILURE);
+    // } 
 
     my_address = (PeerAddress_t*)Malloc(sizeof(PeerAddress_t));
     // Read in configuration options. Should include a client_ip, client_port, 
     // server_ip, and server_port
-    char buffer[128];
-    fprintf(stderr, "Got config path at: %s\n", argv[1]);
-    FILE* fp = Fopen(argv[1], "r");
-    while (fgets(buffer, 128, fp)) {
-        if (starts_with(buffer, MY_IP)) {
-            memcpy(&my_address->ip, &buffer[strlen(MY_IP)], 
-                strcspn(buffer, "\r\n")-strlen(MY_IP));
-            if (!is_valid_ip(my_address->ip)) {
-                fprintf(stderr, ">> Invalid client IP: %s\n", my_address->ip);
-                exit(EXIT_FAILURE);
-            }
-        }else if (starts_with(buffer, MY_PORT)) {
-            memcpy(&my_address->port, &buffer[strlen(MY_PORT)], 
-                strcspn(buffer, "\r\n")-strlen(MY_PORT));
-            if (!is_valid_port(my_address->port)) {
-                fprintf(stderr, ">> Invalid client port: %s\n", 
-                    my_address->port);
-                exit(EXIT_FAILURE);
-            }
-        }else if (starts_with(buffer, PEER_IP)) {
-            memcpy(peer_address.ip, &buffer[strlen(PEER_IP)], 
-                strcspn(buffer, "\r\n")-strlen(PEER_IP));
-            if (!is_valid_ip(peer_address.ip)) {
-                fprintf(stderr, ">> Invalid peer IP: %s\n", peer_address.ip);
-                exit(EXIT_FAILURE);
-            }
-        }else if (starts_with(buffer, PEER_PORT)) {
-            memcpy(peer_address.port, &buffer[strlen(PEER_PORT)], 
-                strcspn(buffer, "\r\n")-strlen(PEER_PORT));
-            if (!is_valid_port(peer_address.port)) {
-                fprintf(stderr, ">> Invalid peer port: %s\n", 
-                    peer_address.port);
-                exit(EXIT_FAILURE);
-            }
-        }
-    }
-    fclose(fp);
+    // char buffer[128];
+    // fprintf(stderr, "Got config path at: %s\n", argv[1]);
+    // FILE* fp = Fopen(argv[1], "r");
+    // while (fgets(buffer, 128, fp)) {
+    //     if (starts_with(buffer, MY_IP)) {
+    //         memcpy(&my_address->ip, &buffer[strlen(MY_IP)], 
+    //             strcspn(buffer, "\r\n")-strlen(MY_IP));
+    //         if (!is_valid_ip(my_address->ip)) {
+    //             fprintf(stderr, ">> Invalid client IP: %s\n", my_address->ip);
+    //             exit(EXIT_FAILURE);
+    //         }
+    //     }else if (starts_with(buffer, MY_PORT)) {
+    //         memcpy(&my_address->port, &buffer[strlen(MY_PORT)], 
+    //             strcspn(buffer, "\r\n")-strlen(MY_PORT));
+    //         if (!is_valid_port(my_address->port)) {
+    //             fprintf(stderr, ">> Invalid client port: %s\n", 
+    //                 my_address->port);
+    //             exit(EXIT_FAILURE);
+    //         }
+    //     }else if (starts_with(buffer, PEER_IP)) {
+    //         memcpy(peer_address.ip, &buffer[strlen(PEER_IP)], 
+    //             strcspn(buffer, "\r\n")-strlen(PEER_IP));
+    //         if (!is_valid_ip(peer_address.ip)) {
+    //             fprintf(stderr, ">> Invalid peer IP: %s\n", peer_address.ip);
+    //             exit(EXIT_FAILURE);
+    //         }
+    //     }else if (starts_with(buffer, PEER_PORT)) {
+    //         memcpy(peer_address.port, &buffer[strlen(PEER_PORT)], 
+    //             strcspn(buffer, "\r\n")-strlen(PEER_PORT));
+    //         if (!is_valid_port(peer_address.port)) {
+    //             fprintf(stderr, ">> Invalid peer port: %s\n", 
+    //                 peer_address.port);
+    //             exit(EXIT_FAILURE);
+    //         }
+    //     }
+    // }
+    // fclose(fp);
 
     retrieving_files = Malloc(file_count * sizeof(FilePath_t*));
     srand(time(0));
